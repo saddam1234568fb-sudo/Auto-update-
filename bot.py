@@ -23,8 +23,8 @@ from googleapiclient.discovery import build
 BOT_TOKEN = "8115651258:AAE9yTHft6BVp8QUeCpmIwITJei8OGmQ0W4"  
 BLOG_ID = "703905313056903698"     
 
-# ⚠️ এখানে আপনার যেসব টেলিগ্রাম চ্যানেলে অটো-পোস্ট হবে, সেগুলোর ID দিন (কমা দিয়ে একাধিক দিতে পারেন)
-AUTO_POST_CHANNELS = ["-1003847092759", "-1004416160004"]
+# ⚠️ আপনার যেসব টেলিগ্রাম চ্যানেলে অটো-পোস্ট হবে, সেগুলোর ID দিন
+AUTO_POST_CHANNELS = ["-1004416160004", "-1003847092759"]
 
 SCOPES = ['https://www.googleapis.com/auth/blogger']
 
@@ -43,7 +43,7 @@ def get_blogger_service():
             token.write(creds.to_json())
     return build('blogger', 'v3', credentials=creds)
 
-# --- ভিডিও ডাউনলোডার (yt-dlp) ---
+# --- পাওয়ারফুল ভিডিও ডাউনলোডার (yt-dlp + Requests) ---
 def download_video(url, user_id):
     filename = f"vid_{user_id}_{int(time.time())}.mp4"
     ydl_opts = {
@@ -54,11 +54,24 @@ def download_video(url, user_id):
         'no_warnings': True
     }
     try:
+        # চেষ্টা ১: yt-dlp দিয়ে ডাউনলোড
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
-        return filename if os.path.exists(filename) else None
+        if os.path.exists(filename): return filename
     except:
-        return None
+        pass
+        
+    # চেষ্টা ২: যদি ডাইরেক্ট mp4 লিংক হয়, তবে ম্যানুয়াল ডাউনলোড
+    if '.mp4' in url:
+        try:
+            r = requests.get(url, stream=True, headers={'User-Agent': 'Mozilla/5.0'})
+            with open(filename, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=1024*1024):
+                    if chunk: f.write(chunk)
+            if os.path.exists(filename): return filename
+        except:
+            pass
+    return None
 
 # --- ইমেজ হোস্টিং (Telegraph API) ম্যানুয়াল পোস্টের জন্য ---
 def upload_image_to_telegraph(file_path):
@@ -69,17 +82,21 @@ def upload_image_to_telegraph(file_path):
     except:
         return None
 
-# --- ওয়েব স্ক্র্যাপার ---
+# --- ওয়েব স্ক্র্যাপার (স্মার্ট ডিটেক্টর) ---
 def scrape_post(url):
     try:
-        r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
+        r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
         soup = BeautifulSoup(r.text, 'html.parser')
         
-        title_tag = soup.find('h3', class_='post-title') or soup.find('h1') or soup.find('title')
+        # টাইটেল খোঁজা
+        title_tag = soup.find('h3', class_=re.compile(r'post-title')) or soup.find('h1') or soup.find('title')
         title = title_tag.text.strip() if title_tag else "Auto Copied Post"
 
-        post_body = soup.find('div', class_='post-body')
-        if not post_body: return None, None, None, None, None
+        # মেইন বডি খোঁজা (সব ধরনের থিমের জন্য)
+        post_body = soup.find('div', class_=re.compile(r'post-body|entry-content|post-content')) or soup.find('article')
+        if not post_body: 
+            post_body = soup.find('body') # ফলব্যাক
+            if not post_body: return None, None, None, None, None
 
         for tag in post_body(['script', 'ins', 'style']):
             tag.decompose()
@@ -89,12 +106,10 @@ def scrape_post(url):
         images = [img['src'] for img in post_body.find_all('img') if 'src' in img.attrs]
         
         videos = []
-        for vid in post_body.find_all('video'):
-            if 'src' in vid.attrs: videos.append(vid['src'])
-        for source in post_body.find_all('source'):
-            if 'src' in source.attrs and source['src'] not in videos: videos.append(source['src'])
-        for iframe in post_body.find_all('iframe'):
-            if 'src' in iframe.attrs: videos.append(iframe['src'])
+        for vid in post_body.find_all(['video', 'source', 'iframe']):
+            src = vid.get('src') or vid.get('data-src')
+            if src and src not in videos:
+                videos.append(src)
 
         clean_html = str(post_body)
         text_content = post_body.get_text(separator="\n", strip=True)
@@ -128,14 +143,39 @@ async def manual_blog_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     context.user_data['state'] = 'WAITING_MANUAL_POST'
     await update.message.reply_text("📝 <b>ম্যানুয়াল পোস্ট মোড:</b>\n\nদয়া করে একটি ছবি (Photo) এবং সাথে আপনার টাইটেল/ক্যাপশন লিখে সেন্ড করুন। আমি এটি ব্লগে আপলোড করে চ্যানেলে শেয়ার করে দেব!", parse_mode=ParseMode.HTML)
 
-# --- ইনপুট হ্যান্ডলার ---
+# --- ইনপুট হ্যান্ডলার (Smart State Resolver) ---
 async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     state = context.user_data.get('state')
+    text = update.message.text or update.message.caption or ""
 
-    # ম্যানুয়াল পোস্ট লজিক
+    # 💡 স্মার্ট লজিক: ইউজার যদি ভুল করে /blog দেওয়ার পরও লিংক দেয়, তবে স্ক্র্যাপার কাজ করবে!
+    if text.startswith("http"):
+        context.user_data['state'] = None
+        url = text
+        msg = await update.message.reply_text("⏳ <b>লিংকটি স্ক্যান করা হচ্ছে... ভিডিও এবং ছবি খোঁজা হচ্ছে!</b>", parse_mode=ParseMode.HTML)
+        
+        loop = asyncio.get_event_loop()
+        title, clean_html, text_content, images, videos = await loop.run_in_executor(None, scrape_post, url)
+        
+        if not title or not clean_html:
+            return await msg.edit_text("❌ <b>পোস্ট কপি করা সম্ভব হয়নি!</b> সাইটটি সিকিউরড হতে পারে।", parse_mode=ParseMode.HTML)
+
+        context.user_data['scraped_title'] = title
+        context.user_data['scraped_html'] = clean_html
+        context.user_data['scraped_text'] = text_content
+        context.user_data['scraped_images'] = images
+        context.user_data['scraped_videos'] = videos
+
+        kb = [
+            [InlineKeyboardButton("📥 ডাউনলোড মিডিয়া (ভিডিও/ছবি)", callback_data="dl_media")],
+            [InlineKeyboardButton("🌐 ব্লগারে ও চ্যানেলে আপলোড করুন", callback_data="up_blogger")]
+        ]
+        return await msg.edit_text(f"✅ <b>পোস্ট সফলভাবে কপি হয়েছে!</b>\n\n📌 <b>টাইটেল:</b> {title[:50]}...\n🖼️ <b>ছবি:</b> {len(images)} টি\n🎬 <b>ভিডিও লিংক:</b> {len(videos)} টি\n\n👇 <i>কী করতে চান তা সিলেক্ট করুন:</i>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+
+    # ম্যানুয়াল পোস্ট লজিক (ছবি + ক্যাপশন)
     if state == 'WAITING_MANUAL_POST':
         if not update.message.photo:
-            return await update.message.reply_text("❌ দয়া করে একটি ছবি (Photo) সেন্ড করুন ক্যাপশনসহ!")
+            return await update.message.reply_text("❌ দয়া করে একটি ছবি (Photo) সেন্ড করুন ক্যাপশনসহ! (অথবা অটো-পোস্ট করতে সরাসরি লিংক দিন)")
             
         status = await update.message.reply_text("⏳ <b>ছবি প্রসেস করা হচ্ছে... ব্লগারে আপলোড হচ্ছে!</b>", parse_mode=ParseMode.HTML)
         
@@ -159,8 +199,7 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             response = await loop.run_in_executor(None, request.execute)
             post_url = response.get('url')
             
-            await status.edit_text(f"🎉 <b>সফলভাবে ব্লগে পোস্ট হয়েছে!</b>\n\n🔗 {post_url}", parse_mode=ParseMode.HTML)
-            # চ্যানেলে অটো পোস্ট
+            await status.edit_text(f"ফুল ভিডিও দেখতে লিংকে অথবা ছবিতে ক্লিক করে ভিডিও দেখুন 👇👆\n\n🔗 {post_url}", parse_mode=ParseMode.HTML)
             await broadcast_to_channels(context, post_url, img_url)
         except Exception as e:
             await status.edit_text(f"❌ <b>ব্লগার আপলোড ব্যর্থ:</b> {e}")
@@ -168,31 +207,8 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['state'] = None
         return
 
-    # লিংক স্ক্র্যাপার লজিক
-    url = update.message.text
-    if not url or not url.startswith("http"):
-        await update.message.reply_text("❌ এটি কোনো সঠিক লিংক নয়। দয়া করে ওয়েবসাইটের লিংক দিন অথবা /blog ব্যবহার করুন।")
-        return
-
-    msg = await update.message.reply_text("⏳ <b>লিংকটি স্ক্যান করা হচ্ছে... ভিডিও এবং ছবি খোঁজা হচ্ছে!</b>", parse_mode=ParseMode.HTML)
-    
-    loop = asyncio.get_event_loop()
-    title, clean_html, text_content, images, videos = await loop.run_in_executor(None, scrape_post, url)
-    
-    if not title or not clean_html:
-        return await msg.edit_text("❌ <b>পোস্ট কপি করা সম্ভব হয়নি!</b> সাইটটি সিকিউরড হতে পারে।", parse_mode=ParseMode.HTML)
-
-    context.user_data['scraped_title'] = title
-    context.user_data['scraped_html'] = clean_html
-    context.user_data['scraped_text'] = text_content
-    context.user_data['scraped_images'] = images
-    context.user_data['scraped_videos'] = videos
-
-    kb = [
-        [InlineKeyboardButton("📥 ডাউনলোড মিডিয়া (ভিডিও/ছবি)", callback_data="dl_media")],
-        [InlineKeyboardButton("🌐 ব্লগারে ও চ্যানেলে আপলোড করুন", callback_data="up_blogger")]
-    ]
-    await msg.edit_text(f"✅ <b>পোস্ট সফলভাবে কপি হয়েছে!</b>\n\n📌 <b>টাইটেল:</b> {title}\n🖼️ <b>ছবি:</b> {len(images)} টি\n🎬 <b>ভিডিও:</b> {len(videos)} টি\n\n👇 <i>কী করতে চান তা সিলেক্ট করুন:</i>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+    # যদি লিংক বা ছবি না দিয়ে সাধারণ টেক্সট দেয়
+    await update.message.reply_text("🤖 দয়া করে ওয়েবসাইটের লিংক দিন অথবা /blog ব্যবহার করুন।", parse_mode=ParseMode.HTML)
 
 # --- বাটন ক্লিক হ্যান্ডলার ---
 async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -207,8 +223,8 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     videos = context.user_data.get('scraped_videos', [])
 
     if data == "dl_media":
-        status_msg = await query.edit_message_text("⏳ <b>ফাইলগুলো আপনার ইনবক্সে পাঠানো হচ্ছে... অপেক্ষা করুন!</b>", parse_mode=ParseMode.HTML)
-        await context.bot.send_message(chat_id=query.message.chat.id, text=f"📌 <b>{title}</b>\n\n{text_content[:3000]}", parse_mode=ParseMode.HTML)
+        status_msg = await query.edit_message_text("⏳ <b>ফাইলগুলো ডাউনলোড করা হচ্ছে... অপেক্ষা করুন!</b>", parse_mode=ParseMode.HTML)
+        await context.bot.send_message(chat_id=query.message.chat.id, text=f"📌 <b>{title}</b>\n\n{text_content[:2000]}", parse_mode=ParseMode.HTML)
         
         for img in images[:5]: 
             try: await context.bot.send_photo(chat_id=query.message.chat.id, photo=img)
@@ -219,7 +235,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
             loop = asyncio.get_event_loop()
             for vid in videos[:3]:
                 try: 
-                    # yt-dlp দিয়ে আসল ভিডিও ডাউনলোড করা
+                    # ভিডিও ডাইরেক্ট ডাউনলোড করার চেষ্টা
                     vid_file = await loop.run_in_executor(None, download_video, vid, query.from_user.id)
                     if vid_file:
                         await context.bot.send_chat_action(chat_id=query.message.chat.id, action=ChatAction.UPLOAD_VIDEO)
@@ -227,7 +243,8 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             await context.bot.send_video(chat_id=query.message.chat.id, video=f)
                         os.remove(vid_file)
                     else:
-                        await context.bot.send_message(chat_id=query.message.chat.id, text=f"🎥 <b>ভিডিও লিংক:</b> {vid}", parse_mode=ParseMode.HTML)
+                        # যদি টেরাবক্স বা এমন সিকিউরড লিংক হয় যা ডাউনলোড হলো না, তবে লিংক দিয়ে দেবে
+                        await context.bot.send_message(chat_id=query.message.chat.id, text=f"🎥 <b>ভিডিও লিংক (সরাসরি ক্লিক করুন):</b>\n{vid}", parse_mode=ParseMode.HTML)
                 except: pass
                 
         await status_msg.edit_text("✅ <b>সব ডাটা পাঠানো সম্পন্ন!</b>", parse_mode=ParseMode.HTML)
@@ -238,12 +255,15 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
             loop = asyncio.get_event_loop()
             service = await loop.run_in_executor(None, get_blogger_service)
             
-            post_data = {'kind': 'blogger#post', 'title': title, 'content': html_content}
+            post_data = {'kind': 'blogger#post', 'title': title[:100], 'content': html_content}
             request = service.posts().insert(blogId=BLOG_ID, body=post_data, isDraft=False)
             response = await loop.run_in_executor(None, request.execute)
             
             post_url = response.get('url')
-            await query.message.reply_text(f"ফুল ভিডিও দেখতে লিংকে অথবা ছবিতে ক্লিক করে ভিডিও দেখুন 👇👆\n\n🔗 {post_url}", parse_mode=ParseMode.HTML)
+            
+            # আপনার পছন্দের ক্যাপশন
+            msg_text = f"ফুল ভিডিও দেখতে লিংকে অথবা ছবিতে ক্লিক করে ভিডিও দেখুন 👇👆\n\n🔗 {post_url}"
+            await query.message.reply_text(msg_text, parse_mode=ParseMode.HTML)
             
             # অটোমেটিক চ্যানেলে ব্রডকাস্ট
             main_image = images[0] if images else None
@@ -257,7 +277,7 @@ def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("blog", manual_blog_command)) # নতুন ম্যানুয়াল কমান্ড
+    app.add_handler(CommandHandler("blog", manual_blog_command))
     app.add_handler(MessageHandler(filters.TEXT | filters.PHOTO, handle_input))
     app.add_handler(CallbackQueryHandler(button_click))
     
