@@ -24,7 +24,7 @@ BOT_TOKEN = "8115651258:AAE9yTHft6BVp8QUeCpmIwITJei8OGmQ0W4"
 BLOG_ID = "703905313056903698"     
 
 # ⚠️ আপনার যেসব টেলিগ্রাম চ্যানেলে অটো-পোস্ট হবে, সেগুলোর ID দিন
-AUTO_POST_CHANNELS = ["-1004416160004", "-1003847092759"]
+AUTO_POST_CHANNELS = ["-1003529992505", "-1003847092759"]
 
 SCOPES = ['https://www.googleapis.com/auth/blogger']
 
@@ -120,7 +120,7 @@ def scrape_post(url):
 
 # --- চ্যানেলে অটো ব্রডকাস্ট ---
 async def broadcast_to_channels(context, post_url, image_url=None):
-    msg_text = f"ফুল ভিডিও দেখতে লিংকে অথবা ছবিতে ক্লিক করে ভিডিও দেখুন 👇👆\n\n🔗 <b>লিংক:</b> {post_url}"
+    msg_text = f"ফুল ভিডিও দেখতে নিচের লিংকে অথবা ফুল ভিডিও দেখুন বাটনে ক্লিক করে দেখে আসুন 👇\n\n🔗 <b>লিংক:</b> {post_url}"
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🎬 ফুল ভিডিও দেখুন", url=post_url)]])
     
     for ch_id in AUTO_POST_CHANNELS:
