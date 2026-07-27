@@ -20,7 +20,7 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
 # --- ⚙️ কনফিগারেশন ---
-BOT_TOKEN = "8115651258:AAE9yTHft6BVp8QUeCpmIwITJei8OGmQ0W4"  
+BOT_TOKEN = "8115651258:AAE3V-gGgSOkhIhbq_F4O0PtKAMZCM-thjw"  
 BLOG_ID = "703905313056903698"     
 
 # ⚠️ আপনার যেসব টেলিগ্রাম চ্যানেলে অটো-পোস্ট হবে, সেগুলোর ID দিন
