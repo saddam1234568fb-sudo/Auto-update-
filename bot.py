@@ -199,7 +199,7 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             response = await loop.run_in_executor(None, request.execute)
             post_url = response.get('url')
             
-            await status.edit_text(f"ফুল ভিডিও দেখতে নিচের লিংকে অথবা ফুল ভিডিও দেখুন বাটনে ক্লিক করে দেখে আসুন 👇\n\n🔗 {post_url}", parse_mode=ParseMode.HTML)
+            await status.edit_text(f"ফুল ভিডিও দেখতে লিংকে অথবা ছবিতে ক্লিক করে ভিডিও দেখুন 👇👆\n\n🔗 {post_url}", parse_mode=ParseMode.HTML)
             await broadcast_to_channels(context, post_url, img_url)
         except Exception as e:
             await status.edit_text(f"❌ <b>ব্লগার আপলোড ব্যর্থ:</b> {e}")
@@ -262,7 +262,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
             post_url = response.get('url')
             
             # আপনার পছন্দের ক্যাপশন
-            msg_text = f"ফুল ভিডিও দেখতে নিচের লিংকে অথবা ফুল ভিডিও দেখুন বাটনে ক্লিক করে দেখে আসুন 👇\n\n🔗 {post_url}"
+            msg_text = f"ফুল ভিডিও দেখতে লিংকে অথবা ছবিতে ক্লিক করে ভিডিও দেখুন 👇👆\n\n🔗 {post_url}"
             await query.message.reply_text(msg_text, parse_mode=ParseMode.HTML)
             
             # অটোমেটিক চ্যানেলে ব্রডকাস্ট
@@ -274,10 +274,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     keep_alive()
-    
-    # ⚠️ Timeout Fix: কানেকশন এবং রিড লিমিট 100 সেকেন্ড করা হলো
-    # সাথে pool_timeout যুক্ত করা হয়েছে যাতে Render এর সার্ভার বারবার কানেকশন ড্রপ না করে।
-    app = ApplicationBuilder().token(BOT_TOKEN).connect_timeout(100).read_timeout(100).write_timeout(100).pool_timeout(100).build()
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
     
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("blog", manual_blog_command))
@@ -285,9 +282,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_click))
     
     print("🚀 Auto-Blogger Pro Bot is running 24/7...")
-    
-    # ⚠️ টেলিগ্রাম এপিআই যেন ক্র্যাশ না করে তাই run_polling এ এই অ্যান্টি-ক্র্যাশ সেটিং দেওয়া হলো:
-    app.run_polling(drop_pending_updates=True, close_loop=False, timeout=60, read_timeout=60)
+    app.run_polling()
 
 if __name__ == '__main__':
     main()
