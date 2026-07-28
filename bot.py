@@ -43,26 +43,36 @@ def get_blogger_service():
             token.write(creds.to_json())
     return build('blogger', 'v3', credentials=creds)
 
-# --- পাওয়ারফুল ও নির্ভুল ভিডিও ডাউনলোডার ---
+# --- পাওয়ারফুল ব্লগার ভিডিও ডাউনলোডার (Blogger Token & Referer Bypass) ---
 def download_video(url, user_id):
     filename = f"vid_{user_id}_{int(time.time())}.mp4"
     
-    # yt-dlp এর জন্য এডভান্সড কনফিগারেশন
+    # Referer হেডার সেট করা (যাতে ব্লগার ব্লক না করতে পারে)
+    referer = "https://www.blogger.com/"
+    if "origin=" in url:
+        try:
+            origin_domain = url.split("origin=")[1].split("&")[0]
+            referer = f"https://{origin_domain}/"
+        except:
+            pass
+
     ydl_opts = {
         'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
         'outtmpl': filename,
         'quiet': True,
         'noplaylist': True,
         'no_warnings': True,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Referer': referer
+        }
     }
     
-    # ১. প্রথমে yt-dlp দিয়ে ভিডিও নামানোর চেষ্টা
+    # চেষ্টা ১: yt-dlp দিয়ে ব্লগার টোকেন পাস করে ডাউনলোড
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
-        # ফাইল যদি ৫০০ KB এর চেয়ে বড় হয় তবেই এটি আসল ভিডিও
-        if os.path.exists(filename) and os.path.getsize(filename) > 500000: 
+        if os.path.exists(filename) and os.path.getsize(filename) > 300000: # 300KB+ সাইজ
             return filename
     except Exception as e:
         print(f"yt-dlp error: {e}")
@@ -71,26 +81,26 @@ def download_video(url, user_id):
         try: os.remove(filename)
         except: pass
 
-    # ২. যদি ডাইরেক্ট ভিডিও স্ট্রিম ফাইল হয় (.mp4 / .m3u8)
+    # চেষ্টা ২: যদি blogger.com/video.g থাকে, সরাসরি প্লেয়ার পেজ থেকে mp4 স্ক্র্যাপ করা
     try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        head_r = requests.head(url, headers=headers, allow_redirects=True, timeout=10)
-        content_type = head_r.headers.get('Content-Type', '')
-
-        # নিশ্চিত করা হচ্ছে এটি একটি আসল ভিডিও কন্টেন্ট
-        if 'video' in content_type or url.lower().split('?')[0].endswith(('.mp4', '.m3u8', '.mkv')):
-            r = requests.get(url, stream=True, headers=headers, timeout=30)
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Referer': referer
+        }
+        res = requests.get(url, headers=headers, timeout=15)
+        mp4_matches = re.findall(r'(https?://[^\s"\'<>]+\.mp4[^\s"\'<>]*)', res.text)
+        if mp4_matches:
+            direct_mp4 = mp4_matches[0].replace('\\u0026', '&')
+            r = requests.get(direct_mp4, stream=True, headers=headers, timeout=30)
             if r.status_code == 200:
                 with open(filename, 'wb') as f:
                     for chunk in r.iter_content(chunk_size=1024*1024):
                         if chunk: f.write(chunk)
-                # ১ MB এর বেশি সাইজ হলে ফাইল ফেরত দেবে
-                if os.path.exists(filename) and os.path.getsize(filename) > 1000000: 
+                if os.path.exists(filename) and os.path.getsize(filename) > 300000:
                     return filename
     except Exception as e:
-        print(f"Direct download error: {e}")
+        print(f"Direct stream extraction error: {e}")
 
-    # ফেক বা করাপ্টেড ফাইল থাকলে তা ডিলিট করে দেওয়া
     if os.path.exists(filename):
         try: os.remove(filename)
         except: pass
@@ -106,7 +116,7 @@ def upload_image_to_telegraph(file_path):
     except:
         return None
 
-# --- আল্ট্রা-পাওয়ারফুল স্মার্ট স্ক্যানার (ব্লগারের আসল ভিডিও ডিটেক্টর) ---
+# --- আল্ট্রা-পাওয়ারফুল স্মার্ট স্ক্যানার ---
 def scrape_post(url):
     try:
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
@@ -126,22 +136,21 @@ def scrape_post(url):
 
         videos = []
         
-        # 📌 ক. HTML ট্যাগের ভেতর ভিডিও লিংক ডিটেক্ট করা (video, iframe, embed, object, a, source)
+        # 📌 ক. HTML ট্যাগের ভেতর ভিডিও লিংক ডিটেক্ট করা
         for tag in post_body.find_all(['video', 'iframe', 'embed', 'object', 'a', 'source']):
             src = tag.get('src') or tag.get('data-src') or tag.get('href') or tag.get('data')
             if src and not src.startswith('data:'):
                 src_clean = src.strip()
-                # ভিডিও সম্পর্কিত ডোমেইন বা ফাইল ফরমেট ডিটেকশন
                 if any(x in src_clean.lower() for x in ['.mp4', '.m3u8', 'blogger.com/video', 'youtube', 'youtu.be', 'drive.google', 'terabox', 'facebook', 'fb.watch', 'instagram', 'vimeo', 'vk.com']):
                     if src_clean not in videos and not src_clean.lower().endswith(('.jpg', '.png', '.jpeg', '.webp', '.gif', '.css', '.js')):
                         videos.append(src_clean)
 
-        # 📌 খ. ব্লগারের নিজস্ব ভিডিও ও জাভাস্ক্রিপ্টে লুকানো লিঙ্ক ডিটেক্ট করা (Regex Pattern Matcher)
-        # Blogger এর `video-play.mp4` বা iframe লিঙ্ক রেগুলার এক্সপ্রেশন দিয়ে ধরা
-        js_video_links = re.findall(r'(https?://[^\s"\'<>]+(?:\.mp4|\.m3u8|blogger\.com/video-play[^\s"\'<>]*))', str(post_body))
+        # 📌 খ. ব্লগারের নিজস্ব ভিডিও ও জাভাস্ক্রিপ্ট ভিডিও লিংক ডিটেক্ট করা
+        js_video_links = re.findall(r'(https?://[^\s"\'<>]+(?:blogger\.com/video[^\s"\'<>]*|\.mp4|\.m3u8))', str(post_body))
         for link in js_video_links:
-            if link not in videos:
-                videos.append(link)
+            clean_link = link.replace('&amp;', '&')
+            if clean_link not in videos:
+                videos.append(clean_link)
 
         # 📌 গ. অপ্রয়োজনীয় ট্যাগ ডিকম্পোজ করা
         for tag in post_body(['script', 'ins', 'style']):
@@ -274,7 +283,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try: await context.bot.send_photo(chat_id=query.message.chat.id, photo=img)
             except: pass
             
-        # 🎬 ২. ভিডিও ফাইল আকারে আসল ভিডিও পাঠানো
+        # 🎬 ২. ভিডিও ফাইল আকারে ডাউনলোড করে সেন্ড করা
         if videos:
             loop = asyncio.get_event_loop()
             for vid in videos:
@@ -292,7 +301,6 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             )
                         os.remove(vid_file)
                     else:
-                        # ডাউনলোডে সমস্যা হলে প্লে করার আসল লিঙ্ক পাঠানো
                         await context.bot.send_message(
                             chat_id=query.message.chat.id, 
                             text=f"🎥 <b>ভিডিওটি প্লে করতে লিংকে ক্লিক করুন:</b>\n{vid}", 
