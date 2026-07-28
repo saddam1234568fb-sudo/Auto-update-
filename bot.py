@@ -43,9 +43,11 @@ def get_blogger_service():
             token.write(creds.to_json())
     return build('blogger', 'v3', credentials=creds)
 
-# --- পাওয়ারফুল ভিডিও ডাউনলোডার (yt-dlp + Requests) ---
+# --- পাওয়ারফুল ভিডিও ডাউনলোডার (স্মার্ট ভ্যালিডেশন সহ) ---
 def download_video(url, user_id):
     filename = f"vid_{user_id}_{int(time.time())}.mp4"
+    
+    # অপশন ১: yt-dlp দিয়ে প্রপারলি ভিডিও ডাউনলোড করা
     ydl_opts = {
         'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
         'outtmpl': filename,
@@ -54,31 +56,43 @@ def download_video(url, user_id):
         'no_warnings': True,
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
     }
+    
     try:
-        # চেষ্টা ১: yt-dlp দিয়ে ডাউনলোড
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
-        if os.path.exists(filename) and os.path.getsize(filename) > 0: 
+        # ফাইল ১MB এর থেকে বড় হলে সেটি আসল ভিডিও ধরা হবে
+        if os.path.exists(filename) and os.path.getsize(filename) > 1000000: 
             return filename
     except Exception as e:
-        print(f"yt-dlp failed: {e}")
-        
-    # চেষ্টা ২: যদি ডাইরেক্ট ভিডিও স্ট্রিম ফাইল হয়
-    try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-        r = requests.get(url, stream=True, headers=headers, timeout=30)
-        if r.status_code == 200:
-            with open(filename, 'wb') as f:
-                for chunk in r.iter_content(chunk_size=1024*1024):
-                    if chunk: f.write(chunk)
-            if os.path.exists(filename) and os.path.getsize(filename) > 10000: 
-                return filename
-    except Exception as e:
-        print(f"Direct download failed: {e}")
+        print(f"yt-dlp error: {e}")
 
     if os.path.exists(filename):
         try: os.remove(filename)
         except: pass
+
+    # অপশন ২: ডাইরেক্ট ভিডিও স্ট্রিম ফাইল হলে
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        head_r = requests.head(url, headers=headers, allow_redirects=True, timeout=10)
+        content_type = head_r.headers.get('Content-Type', '')
+
+        # যদি লিংকটি নিশ্চিতভাবেই ভিডিও কন্টেন্ট হয়
+        if 'video' in content_type or url.lower().endswith(('.mp4', '.m3u8', '.webm')):
+            r = requests.get(url, stream=True, headers=headers, timeout=30)
+            if r.status_code == 200:
+                with open(filename, 'wb') as f:
+                    for chunk in r.iter_content(chunk_size=1024*1024):
+                        if chunk: f.write(chunk)
+                # ন্যূনতম ১MB সাইজ হতে হবে (০ সেকেন্ডের ফেক ফাইল প্রতিরোধ করতে)
+                if os.path.exists(filename) and os.path.getsize(filename) > 1000000: 
+                    return filename
+    except Exception as e:
+        print(f"Direct download error: {e}")
+
+    if os.path.exists(filename):
+        try: os.remove(filename)
+        except: pass
+
     return None
 
 # --- ইমেজ হোস্টিং (Telegraph API) ম্যানুয়াল পোস্টের জন্য ---
@@ -107,16 +121,15 @@ def scrape_post(url):
             post_body = soup.find('body')
             if not post_body: return None, None, None, None, None
 
-        # ১. আগে সব ভিডিও লিংক/প্লেয়ার খুঁজে বের করা (a, video, iframe, source, embed থেকে)
+        # ১. আসল ভিডিও লিংক চিহ্নিত করা
         videos = []
-        video_extensions = ['.mp4', '.m3u8', '.webm', '.mkv', 'youtube.com', 'youtu.be', 'drive.google', 'vimeo', 'dailymotion', 'terabox', 'facebook', 'fb.watch', 'instagram', 'blogger.com/video']
+        video_patterns = ['.mp4', '.m3u8', 'youtube.com', 'youtu.be', 'drive.google', 'vimeo', 'dailymotion', 'terabox', 'facebook', 'fb.watch', 'instagram', 'blogger.com/video-play']
 
         for tag in post_body.find_all(['video', 'source', 'iframe', 'a', 'embed']):
             src = tag.get('src') or tag.get('data-src') or tag.get('href')
             if src:
                 src_lower = src.lower()
-                # যেকোনো ধরনের ভিডিও প্যাটার্ন বা ভিডিও ফাইল লিংক ডিটেক্ট করবে
-                if any(ext in src_lower for ext in video_extensions) or 'video' in src_lower:
+                if any(pat in src_lower for pat in video_patterns):
                     if src not in videos and not src.endswith(('.jpg', '.png', '.jpeg', '.webp', '.gif')):
                         videos.append(src)
 
@@ -251,7 +264,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try: await context.bot.send_photo(chat_id=query.message.chat.id, photo=img)
             except: pass
             
-        # 🎬 সব ভিডিও ফাইল আকারে ডাউনলোড করে সেন্ড করা
+        # 🎬 ভিডিও আসল কিনা চেক করে ফাইল আকারে পাঠানো
         if videos:
             loop = asyncio.get_event_loop()
             for vid in videos:
@@ -261,10 +274,20 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     
                     if vid_file and os.path.exists(vid_file):
                         with open(vid_file, 'rb') as f:
-                            await context.bot.send_video(chat_id=query.message.chat.id, video=f, caption="🎬 <b>ডাউনলোডকৃত ভিডিও</b>", parse_mode=ParseMode.HTML)
+                            await context.bot.send_video(
+                                chat_id=query.message.chat.id, 
+                                video=f, 
+                                caption="🎬 <b>ডাউনলোডকৃত আসল ভিডিও</b>", 
+                                parse_mode=ParseMode.HTML
+                            )
                         os.remove(vid_file)
                     else:
-                        await context.bot.send_message(chat_id=query.message.chat.id, text=f"🎥 <b>ভিডিও লিংক:</b>\n{vid}", parse_mode=ParseMode.HTML)
+                        # ফাইল ডাউনলোড না হলে বা ফেক/ব্রোকেন লিংক হলে সরাসরি ভিডিও লিংক দেবে
+                        await context.bot.send_message(
+                            chat_id=query.message.chat.id, 
+                            text=f"🎥 <b>ভিডিওটি প্লে করতে লিংকে ক্লিক করুন:</b>\n{vid}", 
+                            parse_mode=ParseMode.HTML
+                        )
                 except Exception as e:
                     print(f"Video Send Error: {e}")
                 
