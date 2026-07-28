@@ -43,71 +43,37 @@ def get_blogger_service():
             token.write(creds.to_json())
     return build('blogger', 'v3', credentials=creds)
 
-# --- পাওয়ারফুল ব্লগার ভিডিও ডাউনলোডার (Blogger Token & Referer Bypass) ---
+# --- পাওয়ারফুল ভিডিও ডাউনলোডার (yt-dlp + Requests) ---
 def download_video(url, user_id):
     filename = f"vid_{user_id}_{int(time.time())}.mp4"
-    
-    # Referer হেডার সেট করা (যাতে ব্লগার ব্লক না করতে পারে)
-    referer = "https://www.blogger.com/"
-    if "origin=" in url:
-        try:
-            origin_domain = url.split("origin=")[1].split("&")[0]
-            referer = f"https://{origin_domain}/"
-        except:
-            pass
-
     ydl_opts = {
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'format': 'best[ext=mp4][filesize<50M]/best',
         'outtmpl': filename,
         'quiet': True,
         'noplaylist': True,
-        'no_warnings': True,
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Referer': referer
-        }
+        'no_warnings': True
     }
-    
-    # চেষ্টা ১: yt-dlp দিয়ে ব্লগার টোকেন পাস করে ডাউনলোড
     try:
+        # চেষ্টা ১: yt-dlp দিয়ে ডাউনলোড
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
-        if os.path.exists(filename) and os.path.getsize(filename) > 300000: # 300KB+ সাইজ
-            return filename
-    except Exception as e:
-        print(f"yt-dlp error: {e}")
-
-    if os.path.exists(filename):
-        try: os.remove(filename)
-        except: pass
-
-    # চেষ্টা ২: যদি blogger.com/video.g থাকে, সরাসরি প্লেয়ার পেজ থেকে mp4 স্ক্র্যাপ করা
-    try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Referer': referer
-        }
-        res = requests.get(url, headers=headers, timeout=15)
-        mp4_matches = re.findall(r'(https?://[^\s"\'<>]+\.mp4[^\s"\'<>]*)', res.text)
-        if mp4_matches:
-            direct_mp4 = mp4_matches[0].replace('\\u0026', '&')
-            r = requests.get(direct_mp4, stream=True, headers=headers, timeout=30)
-            if r.status_code == 200:
-                with open(filename, 'wb') as f:
-                    for chunk in r.iter_content(chunk_size=1024*1024):
-                        if chunk: f.write(chunk)
-                if os.path.exists(filename) and os.path.getsize(filename) > 300000:
-                    return filename
-    except Exception as e:
-        print(f"Direct stream extraction error: {e}")
-
-    if os.path.exists(filename):
-        try: os.remove(filename)
-        except: pass
-
+        if os.path.exists(filename): return filename
+    except:
+        pass
+        
+    # চেষ্টা ২: যদি ডাইরেক্ট mp4 লিংক হয়, তবে ম্যানুয়াল ডাউনলোড
+    if '.mp4' in url:
+        try:
+            r = requests.get(url, stream=True, headers={'User-Agent': 'Mozilla/5.0'})
+            with open(filename, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=1024*1024):
+                    if chunk: f.write(chunk)
+            if os.path.exists(filename): return filename
+        except:
+            pass
     return None
 
-# --- ইমেজ হোস্টিং (Telegraph API) ম্যানუალ পোস্টের জন্য ---
+# --- ইমেজ হোস্টিং (Telegraph API) ম্যানুয়াল পোস্টের জন্য ---
 def upload_image_to_telegraph(file_path):
     try:
         with open(file_path, 'rb') as f:
@@ -116,61 +82,40 @@ def upload_image_to_telegraph(file_path):
     except:
         return None
 
-# --- আল্ট্রা-পাওয়ারফুল স্মার্ট স্ক্যানার ---
+# --- ওয়েব স্ক্র্যাপার (স্মার্ট ডিটেক্টর) ---
 def scrape_post(url):
     try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
-        r = requests.get(url, headers=headers, timeout=15)
-        raw_html = r.text
-        soup = BeautifulSoup(raw_html, 'html.parser')
+        r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+        soup = BeautifulSoup(r.text, 'html.parser')
         
         # টাইটেল খোঁজা
         title_tag = soup.find('h3', class_=re.compile(r'post-title')) or soup.find('h1') or soup.find('title')
         title = title_tag.text.strip() if title_tag else "Auto Copied Post"
 
-        # মেইন বডি খোঁজা
+        # মেইন বডি খোঁজা (সব ধরনের থিমের জন্য)
         post_body = soup.find('div', class_=re.compile(r'post-body|entry-content|post-content')) or soup.find('article')
         if not post_body: 
-            post_body = soup.find('body')
+            post_body = soup.find('body') # ফলব্যাক
             if not post_body: return None, None, None, None, None
 
-        videos = []
-        
-        # 📌 ক. HTML ট্যাগের ভেতর ভিডিও লিংক ডিটেক্ট করা
-        for tag in post_body.find_all(['video', 'iframe', 'embed', 'object', 'a', 'source']):
-            src = tag.get('src') or tag.get('data-src') or tag.get('href') or tag.get('data')
-            if src and not src.startswith('data:'):
-                src_clean = src.strip()
-                if any(x in src_clean.lower() for x in ['.mp4', '.m3u8', 'blogger.com/video', 'youtube', 'youtu.be', 'drive.google', 'terabox', 'facebook', 'fb.watch', 'instagram', 'vimeo', 'vk.com']):
-                    if src_clean not in videos and not src_clean.lower().endswith(('.jpg', '.png', '.jpeg', '.webp', '.gif', '.css', '.js')):
-                        videos.append(src_clean)
-
-        # 📌 খ. ব্লগারের নিজস্ব ভিডিও ও জাভাস্ক্রিপ্ট ভিডিও লিংক ডিটেক্ট করা
-        js_video_links = re.findall(r'(https?://[^\s"\'<>]+(?:blogger\.com/video[^\s"\'<>]*|\.mp4|\.m3u8))', str(post_body))
-        for link in js_video_links:
-            clean_link = link.replace('&amp;', '&')
-            if clean_link not in videos:
-                videos.append(clean_link)
-
-        # 📌 গ. অপ্রয়োজনীয় ট্যাগ ডিকম্পোজ করা
         for tag in post_body(['script', 'ins', 'style']):
             tag.decompose()
         for a_tag in post_body.find_all('a'):
             a_tag.unwrap()
 
-        # 📌 ঘ. সব ইমেজ ডিটেক্ট করা
-        images = []
-        for img in post_body.find_all('img'):
-            src = img.get('src') or img.get('data-src')
-            if src and src not in images and not src.startswith('data:'):
-                images.append(src)
+        images = [img['src'] for img in post_body.find_all('img') if 'src' in img.attrs]
+        
+        videos = []
+        for vid in post_body.find_all(['video', 'source', 'iframe']):
+            src = vid.get('src') or vid.get('data-src')
+            if src and src not in videos:
+                videos.append(src)
 
         clean_html = str(post_body)
         text_content = post_body.get_text(separator="\n", strip=True)
 
         return title, clean_html, text_content, images, videos
-    except Exception as e:
-        print(f"Scrape Error: {e}")
+    except:
         return None, None, None, None, None
 
 # --- চ্যানেলে অটো ব্রডকাস্ট ---
@@ -203,6 +148,7 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     state = context.user_data.get('state')
     text = update.message.text or update.message.caption or ""
 
+    # 💡 স্মার্ট লজিক: ইউজার যদি ভুল করে /blog দেওয়ার পরও লিংক দেয়, তবে স্ক্র্যাপার কাজ করবে!
     if text.startswith("http"):
         context.user_data['state'] = None
         url = text
@@ -226,6 +172,7 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         return await msg.edit_text(f"✅ <b>পোস্ট সফলভাবে কপি হয়েছে!</b>\n\n📌 <b>টাইটেল:</b> {title[:50]}...\n🖼️ <b>ছবি:</b> {len(images)} টি\n🎬 <b>ভিডিও লিংক:</b> {len(videos)} টি\n\n👇 <i>কী করতে চান তা সিলেক্ট করুন:</i>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
+    # ম্যানুয়াল পোস্ট লজিক (ছবি + ক্যাপশন)
     if state == 'WAITING_MANUAL_POST':
         if not update.message.photo:
             return await update.message.reply_text("❌ দয়া করে একটি ছবি (Photo) সেন্ড করুন ক্যাপশনসহ! (অথবা অটো-পোস্ট করতে সরাসরি লিংক দিন)")
@@ -260,6 +207,7 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['state'] = None
         return
 
+    # যদি লিংক বা ছবি না দিয়ে সাধারণ টেক্সট দেয়
     await update.message.reply_text("🤖 দয়া করে ওয়েবসাইটের লিংক দিন অথবা /blog ব্যবহার করুন।", parse_mode=ParseMode.HTML)
 
 # --- বাটন ক্লিক হ্যান্ডলার ---
@@ -275,41 +223,31 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     videos = context.user_data.get('scraped_videos', [])
 
     if data == "dl_media":
-        status_msg = await query.edit_message_text("⏳ <b>সব ছবি ও ভিডিও ডাউনলোড করে পাঠানো হচ্ছে... অপেক্ষা করুন!</b>", parse_mode=ParseMode.HTML)
+        status_msg = await query.edit_message_text("⏳ <b>ফাইলগুলো ডাউনলোড করা হচ্ছে... অপেক্ষা করুন!</b>", parse_mode=ParseMode.HTML)
         await context.bot.send_message(chat_id=query.message.chat.id, text=f"📌 <b>{title}</b>\n\n{text_content[:2000]}", parse_mode=ParseMode.HTML)
         
-        # 🖼️ ১. সব ইমেজ পাঠানো
-        for img in images: 
+        for img in images[:5]: 
             try: await context.bot.send_photo(chat_id=query.message.chat.id, photo=img)
             except: pass
             
-        # 🎬 ২. ভিডিও ফাইল আকারে ডাউনলোড করে সেন্ড করা
         if videos:
+            await context.bot.send_message(chat_id=query.message.chat.id, text="🎬 <b>ভিডিও ডাউনলোড করা হচ্ছে... (একটু সময় লাগতে পারে)</b>", parse_mode=ParseMode.HTML)
             loop = asyncio.get_event_loop()
-            for vid in videos:
+            for vid in videos[:3]:
                 try: 
-                    await context.bot.send_chat_action(chat_id=query.message.chat.id, action=ChatAction.UPLOAD_VIDEO)
+                    # ভিডিও ডাইরেক্ট ডাউনলোড করার চেষ্টা
                     vid_file = await loop.run_in_executor(None, download_video, vid, query.from_user.id)
-                    
-                    if vid_file and os.path.exists(vid_file):
+                    if vid_file:
+                        await context.bot.send_chat_action(chat_id=query.message.chat.id, action=ChatAction.UPLOAD_VIDEO)
                         with open(vid_file, 'rb') as f:
-                            await context.bot.send_video(
-                                chat_id=query.message.chat.id, 
-                                video=f, 
-                                caption="🎬 <b>ডাউনলোডকৃত ভিডিও</b>", 
-                                parse_mode=ParseMode.HTML
-                            )
+                            await context.bot.send_video(chat_id=query.message.chat.id, video=f)
                         os.remove(vid_file)
                     else:
-                        await context.bot.send_message(
-                            chat_id=query.message.chat.id, 
-                            text=f"🎥 <b>ভিডিওটি প্লে করতে লিংকে ক্লিক করুন:</b>\n{vid}", 
-                            parse_mode=ParseMode.HTML
-                        )
-                except Exception as e:
-                    print(f"Video Send Error: {e}")
+                        # যদি টেরাবক্স বা এমন সিকিউরড লিংক হয় যা ডাউনলোড হলো না, তবে লিংক দিয়ে দেবে
+                        await context.bot.send_message(chat_id=query.message.chat.id, text=f"🎥 <b>ভিডিও লিংক (সরাসরি ক্লিক করুন):</b>\n{vid}", parse_mode=ParseMode.HTML)
+                except: pass
                 
-        await status_msg.edit_text("✅ <b>ব্লগারের সব মিডিয়া ডাটা পাঠানো সম্পন্ন!</b>", parse_mode=ParseMode.HTML)
+        await status_msg.edit_text("✅ <b>সব ডাটা পাঠানো সম্পন্ন!</b>", parse_mode=ParseMode.HTML)
 
     elif data == "up_blogger":
         await query.edit_message_text("🚀 <b>আপনার ব্লগারে পোস্ট আপলোড করা হচ্ছে...</b>", parse_mode=ParseMode.HTML)
@@ -323,9 +261,11 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             post_url = response.get('url')
             
+            # আপনার পছন্দের ক্যাপশন
             msg_text = f"ফুল ভিডিও দেখতে লিংকে অথবা ছবিতে ক্লিক করে ভিডিও দেখুন 👇👆\n\n🔗 {post_url}"
             await query.message.reply_text(msg_text, parse_mode=ParseMode.HTML)
             
+            # অটোমেটিক চ্যানেলে ব্রডকাস্ট
             main_image = images[0] if images else None
             await broadcast_to_channels(context, post_url, main_image)
             
