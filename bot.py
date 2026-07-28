@@ -275,8 +275,9 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     keep_alive()
     
-    # ⚠️ Timeout Fix: কানেকশন এবং রিড লিমিট 60 সেকেন্ড করা হলো
-    app = ApplicationBuilder().token(BOT_TOKEN).connect_timeout(60).read_timeout(60).build()
+    # ⚠️ Timeout Fix: কানেকশন এবং রিড লিমিট 100 সেকেন্ড করা হলো
+    # সাথে pool_timeout যুক্ত করা হয়েছে যাতে Render এর সার্ভার বারবার কানেকশন ড্রপ না করে।
+    app = ApplicationBuilder().token(BOT_TOKEN).connect_timeout(100).read_timeout(100).write_timeout(100).pool_timeout(100).build()
     
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("blog", manual_blog_command))
@@ -284,7 +285,9 @@ def main():
     app.add_handler(CallbackQueryHandler(button_click))
     
     print("🚀 Auto-Blogger Pro Bot is running 24/7...")
-    app.run_polling()
+    
+    # ⚠️ টেলিগ্রাম এপিআই যেন ক্র্যাশ না করে তাই run_polling এ এই অ্যান্টি-ক্র্যাশ সেটিং দেওয়া হলো:
+    app.run_polling(drop_pending_updates=True, close_loop=False, timeout=60, read_timeout=60)
 
 if __name__ == '__main__':
     main()
