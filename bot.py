@@ -43,37 +43,48 @@ def get_blogger_service():
             token.write(creds.to_json())
     return build('blogger', 'v3', credentials=creds)
 
-# --- পাওয়ারফুল ভিডিও ডাউনলোডার (yt-dlp + Requests) ---
+# --- পাওয়ারফুল ভিডিও ডাউনলোডার (অ্যাডভান্সড yt-dlp + Requests) ---
 def download_video(url, user_id):
     filename = f"vid_{user_id}_{int(time.time())}.mp4"
     ydl_opts = {
-        'format': 'best[ext=mp4][filesize<50M]/best',
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
         'outtmpl': filename,
         'quiet': True,
         'noplaylist': True,
-        'no_warnings': True
+        'no_warnings': True,
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
     }
+    
+    # চেষ্টা ১: yt-dlp দিয়ে ভিডিও এক্সট্র্যাক্ট ও ডাউনলোড
     try:
-        # চেষ্টা ১: yt-dlp দিয়ে ডাউনলোড
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
-        if os.path.exists(filename): return filename
-    except:
-        pass
-        
-    # চেষ্টা ২: যদি ডাইরেক্ট mp4 লিংক হয়, তবে ম্যানুয়াল ডাউনলোড
-    if '.mp4' in url:
-        try:
-            r = requests.get(url, stream=True, headers={'User-Agent': 'Mozilla/5.0'})
+        if os.path.exists(filename) and os.path.getsize(filename) > 0:
+            return filename
+    except Exception as e:
+        print(f"yt-dlp failed for {url}: {e}")
+
+    # চেষ্টা ২: যদি ডাইরেক্ট মিডিয়া বা স্ট্রিম লিংক হয় (ডাইরেক্ট ডাউনলোড)
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        r = requests.get(url, stream=True, headers=headers, timeout=30)
+        if r.status_code == 200:
             with open(filename, 'wb') as f:
                 for chunk in r.iter_content(chunk_size=1024*1024):
-                    if chunk: f.write(chunk)
-            if os.path.exists(filename): return filename
-        except:
-            pass
+                    if chunk: 
+                        f.write(chunk)
+            if os.path.exists(filename) and os.path.getsize(filename) > 10000: # 10KB এর চেয়ে বড় হলে
+                return filename
+    except Exception as e:
+        print(f"Direct download failed for {url}: {e}")
+
+    if os.path.exists(filename):
+        try: os.remove(filename)
+        except: pass
+
     return None
 
-# --- ইমেজ হোস্টিং (Telegraph API) ম্যানুয়াল পোস্টের জন্য ---
+# --- ইমেজ হোস্টিং (Telegraph API) ম্যানუალ পোস্টের জন্য ---
 def upload_image_to_telegraph(file_path):
     try:
         with open(file_path, 'rb') as f:
@@ -106,10 +117,12 @@ def scrape_post(url):
         images = [img['src'] for img in post_body.find_all('img') if 'src' in img.attrs]
         
         videos = []
-        for vid in post_body.find_all(['video', 'source', 'iframe']):
-            src = vid.get('src') or vid.get('data-src')
+        for vid in post_body.find_all(['video', 'source', 'iframe', 'a']):
+            src = vid.get('src') or vid.get('data-src') or vid.get('href')
             if src and src not in videos:
-                videos.append(src)
+                # ভিডিও বা সোশ্যাল ভিডিও ওয়েবসাইটের ফিল্টার
+                if any(ext in src.lower() for ext in ['.mp4', '.m3u8', 'youtube', 'youtu.be', 'drive.google', 'vimeo', 'dailymotion', 'terabox', 'facebook', 'instagram']):
+                    videos.append(src)
 
         clean_html = str(post_body)
         text_content = post_body.get_text(separator="\n", strip=True)
@@ -223,31 +236,43 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     videos = context.user_data.get('scraped_videos', [])
 
     if data == "dl_media":
-        status_msg = await query.edit_message_text("⏳ <b>ফাইলগুলো ডাউনলোড করা হচ্ছে... অপেক্ষা করুন!</b>", parse_mode=ParseMode.HTML)
+        status_msg = await query.edit_message_text("⏳ <b>ব্লগারের সব ইমেজ ও ভিডিও ডাউনলোড করে পাঠানো হচ্ছে... অপেক্ষা করুন!</b>", parse_mode=ParseMode.HTML)
         await context.bot.send_message(chat_id=query.message.chat.id, text=f"📌 <b>{title}</b>\n\n{text_content[:2000]}", parse_mode=ParseMode.HTML)
         
-        for img in images[:5]: 
-            try: await context.bot.send_photo(chat_id=query.message.chat.id, photo=img)
-            except: pass
-            
-        if videos:
-            await context.bot.send_message(chat_id=query.message.chat.id, text="🎬 <b>ভিডিও ডাউনলোড করা হচ্ছে... (একটু সময় লাগতে পারে)</b>", parse_mode=ParseMode.HTML)
-            loop = asyncio.get_event_loop()
-            for vid in videos[:3]:
+        # 🖼️ সব ইমেজ পাঠানো
+        if images:
+            for img in images: 
                 try: 
-                    # ভিডিও ডাইরেক্ট ডাউনলোড করার চেষ্টা
+                    await context.bot.send_photo(chat_id=query.message.chat.id, photo=img)
+                except Exception as e: 
+                    print(f"Photo send error: {e}")
+
+        # 🎬 সব ভিডিও ফাইল আকারে পাঠানো
+        if videos:
+            loop = asyncio.get_event_loop()
+            for vid in videos:
+                try: 
+                    await context.bot.send_chat_action(chat_id=query.message.chat.id, action=ChatAction.UPLOAD_VIDEO)
+                    
+                    # ভিডিও ডাউনলোড করার প্রসেস
                     vid_file = await loop.run_in_executor(None, download_video, vid, query.from_user.id)
-                    if vid_file:
-                        await context.bot.send_chat_action(chat_id=query.message.chat.id, action=ChatAction.UPLOAD_VIDEO)
+                    
+                    if vid_file and os.path.exists(vid_file):
                         with open(vid_file, 'rb') as f:
-                            await context.bot.send_video(chat_id=query.message.chat.id, video=f)
+                            await context.bot.send_video(
+                                chat_id=query.message.chat.id, 
+                                video=f,
+                                caption="🎬 <b>ডাউনলোডকৃত ভিডিও</b>",
+                                parse_mode=ParseMode.HTML
+                            )
                         os.remove(vid_file)
                     else:
-                        # যদি টেরাবক্স বা এমন সিকিউরড লিংক হয় যা ডাউনলোড হলো না, তবে লিংক দিয়ে দেবে
-                        await context.bot.send_message(chat_id=query.message.chat.id, text=f"🎥 <b>ভিডিও লিংক (সরাসরি ক্লিক করুন):</b>\n{vid}", parse_mode=ParseMode.HTML)
-                except: pass
+                        # যদি অতিরিক্ত সিকিউর সাইট হয় যা ফাইল আকারে ডাউনলোডে ব্যর্থ হয়, তবে ফলব্যাক লিংক পাঠানো হবে
+                        await context.bot.send_message(chat_id=query.message.chat.id, text=f"🎥 <b>ভিডিও প্লে করার লিংক:</b>\n{vid}", parse_mode=ParseMode.HTML)
+                except Exception as e:
+                    print(f"Video process error: {e}")
                 
-        await status_msg.edit_text("✅ <b>সব ডাটা পাঠানো সম্পন্ন!</b>", parse_mode=ParseMode.HTML)
+        await status_msg.edit_text("✅ <b>ব্লগারের সব মিডিয়া ডাটা পাঠানো সম্পন্ন!</b>", parse_mode=ParseMode.HTML)
 
     elif data == "up_blogger":
         await query.edit_message_text("🚀 <b>আপনার ব্লগারে পোস্ট আপলোড করা হচ্ছে...</b>", parse_mode=ParseMode.HTML)
