@@ -120,15 +120,22 @@ def scrape_post(url):
 
 # --- চ্যানেলে অটো ব্রডকাস্ট ---
 async def broadcast_to_channels(context, post_url, image_url=None):
-    msg_text = f"ফুল ভিডিও দেখতে নিচের লিংকে অথবা ফুল ভিডিও দেখুন বাটনে ক্লিক করে দেখে আসুন 👇\n\n🔗 <b>লিংক:</b> {post_url}"
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("🎬 ফুল ভিডিও দেখুন", url=post_url)]])
+    msg_text = (
+        f"(সেরা জিনিস মামা না দেখলে মিস🥵🫦\n"
+        f"🎥 ভিডিও দেখতে নিচের লিংকে ক্লিক করুন 👇\n\n"
+        f"🔗 লিংক: {post_url}\n\n"
+        f"👶 বাচ্চাদের ভিডিও 👇\n"
+        f"🔗 https://t.me/+Tkt5vDWe1IQ0YThl\n\n"
+        f"📖 ভিডিও দেখার নিয়ম 👇\n"
+        f"🔗 https://t.me/c/4313671513/2"
+    )
     
     for ch_id in AUTO_POST_CHANNELS:
         try:
             if image_url:
-                await context.bot.send_photo(chat_id=ch_id, photo=image_url, caption=msg_text, reply_markup=kb, parse_mode=ParseMode.HTML)
+                await context.bot.send_photo(chat_id=ch_id, photo=image_url, caption=msg_text, parse_mode=ParseMode.HTML)
             else:
-                await context.bot.send_message(chat_id=ch_id, text=msg_text, reply_markup=kb, parse_mode=ParseMode.HTML)
+                await context.bot.send_message(chat_id=ch_id, text=msg_text, parse_mode=ParseMode.HTML)
         except Exception as e:
             print(f"Broadcast Error on {ch_id}: {e}")
 
