@@ -121,13 +121,13 @@ def scrape_post(url):
 # --- চ্যানেলে অটো ব্রডকাস্ট ---
 async def broadcast_to_channels(context, post_url, image_url=None):
     msg_text = (
-        f"সেরা জিনিস মামা না দেখলে মিস🥵🫦\n"
-        f"🎥 ভিডিও দেখতে নিচের লিংকে ক্লিক করুন 👇\n\n"
-        f"🔗 লিংক: {post_url}\n\n"
+        f"🎥 Video link 👇 {post_url}\n\n"
         f"👶 বাচ্চাদের ভিডিও 👇\n"
         f"🔗 https://t.me/+Tkt5vDWe1IQ0YThl\n\n"
         f"📖 ভিডিও দেখার নিয়ম 👇\n"
-        f"🔗 https://t.me/c/4313671513/2"
+        f"🔗 https://t.me/c/4313671513/2\n\n"
+        f"❤️ ভরপুর রিয়েকশন দিন যাতে আরও নতুন নতুন ভিডিও নিয়মিত পান! 🔥 \n"
+        f'<a href="https://t.me/auto_accepr_sk_bot?start=ref_6836865426">Auto Accept Bot</a>'
     )
     
     for ch_id in AUTO_POST_CHANNELS:
