@@ -24,7 +24,7 @@ BOT_TOKEN = "8115651258:AAE3V-gGgSOkhIhbq_F4O0PtKAMZCM-thjw"
 BLOG_ID = "703905313056903698"     
 
 # ⚠️ আপনার যেসব টেলিগ্রাম চ্যানেলে অটো-পোস্ট হবে, সেগুলোর ID দিন
-AUTO_POST_CHANNELS = ["-1003529992505", "-1003847092759"]
+AUTO_POST_CHANNELS = ["-1003760997017", "-1003847092759"]
 
 SCOPES = ['https://www.googleapis.com/auth/blogger']
 
