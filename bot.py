@@ -39,7 +39,8 @@ AD_POPUP_HTML = """
         background: rgba(0,0,0,0.8); z-index: 999999; justify-content: center; align-items: center;
     }
     #ad-popup-box {
-        background: #fff; width: 340px; height: 450px; border-radius: 8px; position: relative;
+        background: #fff; width: 90%; max-width: 380px; height: 550px; /* লম্বায় বড় করা হয়েছে */
+        border-radius: 8px; position: relative;
         text-align: center; overflow: hidden; box-shadow: 0 0 20px rgba(255,255,255,0.3);
         border: 2px solid #444;
     }
@@ -61,7 +62,7 @@ AD_POPUP_HTML = """
         <span id="ad-timer">Wait: 30s</span>
         <span id="ad-close-btn" title="Close">&times;</span>
         <!-- আপনার Adsterra Direct Link অটোমেটিক Iframe এর ভেতরে রান হবে, কোনো ক্লিক লাগবে না -->
-        <iframe id="ad-iframe" src="" width="100%" height="100%" frameborder="0" scrolling="auto" style="border-radius:8px;"></iframe>
+        <iframe id="ad-iframe" src="" width="100%" height="100%" frameborder="0" scrolling="auto" style="border-radius:8px; background-color: #fff;"></iframe>
     </div>
 </div>
 
