@@ -225,10 +225,9 @@ def scrape_post(url):
 
 # --- চ্যানেলে অটো ব্রডকাস্ট (নতুন ফরম্যাট) ---
 async def broadcast_to_channels(context, post_url, image_url=None):
+    # 💡 ডাইরেক্ট লিংক সরিয়ে দেওয়া হয়েছে
     msg_text = (
         f"🎥 Video link 👇\n🔗 {post_url}\n\n"
-        f"🔥 Direct Link 👇\n"
-        f"🔗 https://www.effectivecpmnetwork.com/zvq5yassw8?key=6d3e0902d36dd8723c60f6ce29243cfa\n\n"
         f"👶 বাচ্চাদের ভিডিও 👇\n"
         f"🔗 https://t.me/+Tkt5vDWe1IQ0YThl\n\n"
         f"📖 ভিডিও দেখার নিয়ম 👇\n"
@@ -309,7 +308,6 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             response = await loop.run_in_executor(None, request.execute)
             post_url = response.get('url')
             
-            # 💡 ম্যানুয়াল পোস্টের পর ব্রডকাস্ট বাটন দেওয়া হলো
             context.user_data['pending_post_url'] = post_url
             context.user_data['pending_image_url'] = img_url
             
@@ -376,7 +374,6 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
             post_url = response.get('url')
             main_image = images[0] if images else None
             
-            # 💡 অটো-স্ক্র্যাপ পোস্টের পর ব্রডকাস্ট বাটন দেওয়া হলো
             context.user_data['pending_post_url'] = post_url
             context.user_data['pending_image_url'] = main_image
             
@@ -386,7 +383,6 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             await query.message.reply_text(f"❌ <b>আপলোড ব্যর্থ হয়েছে!</b> কারণ: {e}", parse_mode=ParseMode.HTML)
 
-    # 💡 নতুন বাটন: সব চ্যানেলে পোস্ট করুন
     elif data == "broadcast_now":
         post_url = context.user_data.get('pending_post_url')
         image_url = context.user_data.get('pending_image_url')
