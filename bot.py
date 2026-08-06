@@ -25,8 +25,92 @@ BLOG_ID = "703905313056903698"
 
 # ⚠️ আপনার যেসব টেলিগ্রাম চ্যানেলে অটো-পোস্ট হবে, সেগুলোর ID দিন
 AUTO_POST_CHANNELS = ["-1003760997017", "-1003847092759"]
-
 SCOPES = ['https://www.googleapis.com/auth/blogger']
+
+# ==========================================
+# 💰 প্রিমিয়াম ফিচার: ADSTERRA POP-UP SCRIPT 
+# ==========================================
+# এই কোডটি প্রতিটি পোস্টের নিচে অটোমেটিক যুক্ত হবে
+AD_POPUP_HTML = """
+<!-- Premium Ad Popup Script by Bot -->
+<style>
+    #ad-popup-overlay {
+        display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.8); z-index: 999999; justify-content: center; align-items: center;
+    }
+    #ad-popup-box {
+        background: #000; width: 320px; height: 250px; border-radius: 8px; position: relative;
+        text-align: center; overflow: hidden; box-shadow: 0 0 20px rgba(255,255,255,0.3);
+        border: 2px solid #444;
+    }
+    #ad-close-btn {
+        display: none; position: absolute; top: 8px; right: 8px; font-size: 18px;
+        color: #fff; cursor: pointer; font-weight: bold; background: rgba(255,0,0,0.8);
+        border-radius: 50%; width: 28px; height: 28px; line-height: 28px; text-align: center;
+    }
+    #ad-timer {
+        position: absolute; top: 8px; left: 8px; background: #ffcc00; color: #000;
+        padding: 4px 10px; border-radius: 5px; font-size: 14px; font-weight: bold;
+    }
+    .ad-content-link {
+        display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; 
+        text-decoration: none; background: url('https://i.imgur.com/vHqB1O1.gif') center/cover;
+    }
+    .ad-play-btn {
+        font-size: 50px; color: white; background: rgba(0,0,0,0.6);
+        border-radius: 50%; width: 70px; height: 70px; line-height: 70px; text-align: center;
+        border: 3px solid #fff;
+    }
+</style>
+
+<div id="ad-popup-overlay">
+    <div id="ad-popup-box">
+        <span id="ad-timer">Wait: 30s</span>
+        <span id="ad-close-btn" title="Close">&times;</span>
+        <!-- আপনার Adsterra Direct Link নিচে দেওয়া হলো -->
+        <a href="https://www.effectivecpmnetwork.com/zvq5yassw8?key=6d3e0902d36dd8723c60f6ce29243cfa" target="_blank" class="ad-content-link">
+            <div class="ad-play-btn">▶</div>
+        </a>
+    </div>
+</div>
+
+<script>
+    setTimeout(function() {
+        showAdPopup();
+    }, 5000); // ৫ সেকেন্ড পর প্রথমবার পপ-আপ আসবে
+
+    function showAdPopup() {
+        document.getElementById('ad-popup-overlay').style.display = 'flex';
+        document.getElementById('ad-close-btn').style.display = 'none';
+        let timeLeft = 30; // ৩০ সেকেন্ডের টাইমার
+        document.getElementById('ad-timer').innerText = 'Wait: ' + timeLeft + 's';
+
+        let timerInterval = setInterval(function() {
+            timeLeft--;
+            document.getElementById('ad-timer').innerText = 'Wait: ' + timeLeft + 's';
+
+            if (timeLeft <= 20) { // ৩০ থেকে ১০ সেকেন্ড গেলে (অর্থাৎ ২০ এ আসলে) ক্লোজ বাটন আসবে
+                document.getElementById('ad-close-btn').style.display = 'block';
+            }
+            if (timeLeft <= 0) {
+                clearInterval(timerInterval);
+                document.getElementById('ad-timer').innerText = 'Ready!';
+            }
+        }, 1000);
+
+        document.getElementById('ad-close-btn').onclick = function() {
+            document.getElementById('ad-popup-overlay').style.display = 'none';
+            clearInterval(timerInterval);
+            
+            // ক্লোজ করার পর ২ মিনিট (১২০০০০ মিলি-সেকেন্ড) পর আবার পপ-আপ আসবে
+            setTimeout(function() {
+                showAdPopup();
+            }, 120000); 
+        };
+    }
+</script>
+"""
+# ==========================================
 
 # --- গুগল ব্লগার এপিআই অথেনটিকেশন ---
 def get_blogger_service():
@@ -43,7 +127,7 @@ def get_blogger_service():
             token.write(creds.to_json())
     return build('blogger', 'v3', credentials=creds)
 
-# --- পাওয়ারফুল ভিডিও ডাউনলোডার (yt-dlp + Requests) ---
+# --- পাওয়ারফুল ভিডিও ডাউনলোডার ---
 def download_video(url, user_id):
     filename = f"vid_{user_id}_{int(time.time())}.mp4"
     ydl_opts = {
@@ -54,14 +138,11 @@ def download_video(url, user_id):
         'no_warnings': True
     }
     try:
-        # চেষ্টা ১: yt-dlp দিয়ে ডাউনলোড
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
         if os.path.exists(filename): return filename
     except:
         pass
-        
-    # চেষ্টা ২: যদি ডাইরেক্ট mp4 লিংক হয়, তবে ম্যানুয়াল ডাউনলোড
     if '.mp4' in url:
         try:
             r = requests.get(url, stream=True, headers={'User-Agent': 'Mozilla/5.0'})
@@ -73,7 +154,7 @@ def download_video(url, user_id):
             pass
     return None
 
-# --- ইমেজ হোস্টিং (Telegraph API) ম্যানুয়াল পোস্টের জন্য ---
+# --- ইমেজ হোস্টিং ---
 def upload_image_to_telegraph(file_path):
     try:
         with open(file_path, 'rb') as f:
@@ -82,20 +163,18 @@ def upload_image_to_telegraph(file_path):
     except:
         return None
 
-# --- ওয়েব স্ক্র্যাপার (স্মার্ট ডিটেক্টর) ---
+# --- ওয়েব স্ক্র্যাপার ---
 def scrape_post(url):
     try:
         r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
         soup = BeautifulSoup(r.text, 'html.parser')
         
-        # টাইটেল খোঁজা
         title_tag = soup.find('h3', class_=re.compile(r'post-title')) or soup.find('h1') or soup.find('title')
         title = title_tag.text.strip() if title_tag else "Auto Copied Post"
 
-        # মেইন বডি খোঁজা (সব ধরনের থিমের জন্য)
         post_body = soup.find('div', class_=re.compile(r'post-body|entry-content|post-content')) or soup.find('article')
         if not post_body: 
-            post_body = soup.find('body') # ফলব্যাক
+            post_body = soup.find('body') 
             if not post_body: return None, None, None, None, None
 
         for tag in post_body(['script', 'ins', 'style']):
@@ -129,7 +208,6 @@ async def broadcast_to_channels(context, post_url, image_url=None):
         f"❤️ ভরপুর রিয়েকশন দিন যাতে আরও নতুন নতুন ভিডিও নিয়মিত পান! 🔥 \n"
         f'<a href="https://t.me/auto_accepr_sk_bot?start=ref_6836865426">Auto Accept Bot</a>'
     )
-    
     for ch_id in AUTO_POST_CHANNELS:
         try:
             if image_url:
@@ -142,20 +220,18 @@ async def broadcast_to_channels(context, post_url, image_url=None):
 # --- টেলিগ্রাম কমান্ড ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    txt = f"🎉 <b>হ্যালো {user.first_name}!</b>\n\n🤖 আমি <b>Smart Scraper & Auto-Blogger Bot!</b>\n\n🔗 <b>অটো পোস্ট:</b> ব্লগারের লিংক দিন।\n📝 <b>ম্যানুয়াল পোস্ট:</b> /blog লিখে সেন্ড করুন।"
+    txt = f"🎉 <b>হ্যালো {user.first_name}!</b>\n\n🤖 আমি <b>Smart Scraper & Auto-Blogger Bot! (Premium Mode)</b>\n\n🔗 <b>অটো পোস্ট:</b> ব্লগারের লিংক দিন।\n📝 <b>ম্যানুয়াল পোস্ট:</b> /blog লিখে সেন্ড করুন।"
     await update.message.reply_text(txt, parse_mode=ParseMode.HTML)
 
-# --- ম্যানুয়াল পোস্ট কমান্ড (/blog) ---
 async def manual_blog_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['state'] = 'WAITING_MANUAL_POST'
     await update.message.reply_text("📝 <b>ম্যানুয়াল পোস্ট মোড:</b>\n\nদয়া করে একটি ছবি (Photo) এবং সাথে আপনার টাইটেল/ক্যাপশন লিখে সেন্ড করুন। আমি এটি ব্লগে আপলোড করে চ্যানেলে শেয়ার করে দেব!", parse_mode=ParseMode.HTML)
 
-# --- ইনপুট হ্যান্ডলার (Smart State Resolver) ---
+# --- ইনপুট হ্যান্ডলার ---
 async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     state = context.user_data.get('state')
     text = update.message.text or update.message.caption or ""
 
-    # 💡 স্মার্ট লজিক: ইউজার যদি ভুল করে /blog দেওয়ার পরও লিংক দেয়, তবে স্ক্র্যাপার কাজ করবে!
     if text.startswith("http"):
         context.user_data['state'] = None
         url = text
@@ -179,7 +255,6 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         return await msg.edit_text(f"✅ <b>পোস্ট সফলভাবে কপি হয়েছে!</b>\n\n📌 <b>টাইটেল:</b> {title[:50]}...\n🖼️ <b>ছবি:</b> {len(images)} টি\n🎬 <b>ভিডিও লিংক:</b> {len(videos)} টি\n\n👇 <i>কী করতে চান তা সিলেক্ট করুন:</i>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
-    # ম্যানুয়াল পোস্ট লজিক (ছবি + ক্যাপশন)
     if state == 'WAITING_MANUAL_POST':
         if not update.message.photo:
             return await update.message.reply_text("❌ দয়া করে একটি ছবি (Photo) সেন্ড করুন ক্যাপশনসহ! (অথবা অটো-পোস্ট করতে সরাসরি লিংক দিন)")
@@ -197,7 +272,8 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not img_url:
             return await status.edit_text("❌ ছবি হোস্ট করতে সমস্যা হয়েছে!")
             
-        html_content = f"<center><img src='{img_url}' width='100%'></center><br><br><p>{caption}</p><br><hr><i>✅ Published by AutoBot</i>"
+        # 💡 এখানেই ম্যাজিক! ম্যানুয়াল পোস্টে প্রিমিয়াম AD_POPUP_HTML যোগ করা হলো
+        html_content = f"<center><img src='{img_url}' width='100%'></center><br><br><p>{caption}</p><br><hr><i>✅ Published by AutoBot</i>" + AD_POPUP_HTML
         
         try:
             service = await loop.run_in_executor(None, get_blogger_service)
@@ -214,7 +290,6 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['state'] = None
         return
 
-    # যদি লিংক বা ছবি না দিয়ে সাধারণ টেক্সট দেয়
     await update.message.reply_text("🤖 দয়া করে ওয়েবসাইটের লিংক দিন অথবা /blog ব্যবহার করুন।", parse_mode=ParseMode.HTML)
 
 # --- বাটন ক্লিক হ্যান্ডলার ---
@@ -242,7 +317,6 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
             loop = asyncio.get_event_loop()
             for vid in videos[:3]:
                 try: 
-                    # ভিডিও ডাইরেক্ট ডাউনলোড করার চেষ্টা
                     vid_file = await loop.run_in_executor(None, download_video, vid, query.from_user.id)
                     if vid_file:
                         await context.bot.send_chat_action(chat_id=query.message.chat.id, action=ChatAction.UPLOAD_VIDEO)
@@ -250,7 +324,6 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             await context.bot.send_video(chat_id=query.message.chat.id, video=f)
                         os.remove(vid_file)
                     else:
-                        # যদি টেরাবক্স বা এমন সিকিউরড লিংক হয় যা ডাউনলোড হলো না, তবে লিংক দিয়ে দেবে
                         await context.bot.send_message(chat_id=query.message.chat.id, text=f"🎥 <b>ভিডিও লিংক (সরাসরি ক্লিক করুন):</b>\n{vid}", parse_mode=ParseMode.HTML)
                 except: pass
                 
@@ -262,17 +335,18 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
             loop = asyncio.get_event_loop()
             service = await loop.run_in_executor(None, get_blogger_service)
             
-            post_data = {'kind': 'blogger#post', 'title': title[:100], 'content': html_content}
+            # 💡 এখানেই ম্যাজিক! অটো-স্ক্র্যাপ করা পোস্টেও AD_POPUP_HTML যোগ করা হলো
+            final_content = html_content + AD_POPUP_HTML
+
+            post_data = {'kind': 'blogger#post', 'title': title[:100], 'content': final_content}
             request = service.posts().insert(blogId=BLOG_ID, body=post_data, isDraft=False)
             response = await loop.run_in_executor(None, request.execute)
             
             post_url = response.get('url')
             
-            # আপনার পছন্দের ক্যাপশন
             msg_text = f"ফুল ভিডিও দেখতে লিংকে অথবা ছবিতে ক্লিক করে ভিডিও দেখুন 👇👆\n\n🔗 {post_url}"
             await query.message.reply_text(msg_text, parse_mode=ParseMode.HTML)
             
-            # অটোমেটিক চ্যানেলে ব্রডকাস্ট
             main_image = images[0] if images else None
             await broadcast_to_channels(context, post_url, main_image)
             
@@ -288,7 +362,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT | filters.PHOTO, handle_input))
     app.add_handler(CallbackQueryHandler(button_click))
     
-    print("🚀 Auto-Blogger Pro Bot is running 24/7...")
+    print("🚀 Auto-Blogger Pro Bot (Premium Edition) is running 24/7...")
     app.run_polling()
 
 if __name__ == '__main__':
