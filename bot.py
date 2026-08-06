@@ -39,10 +39,23 @@ AD_POPUP_HTML = """
         background: rgba(0,0,0,0.8); z-index: 999999; justify-content: center; align-items: center;
     }
     #ad-popup-box {
-        background: #fff; width: 90%; max-width: 380px; height: 550px; /* লম্বায় বড় করা হয়েছে */
+        background: #fff; width: 90%; max-width: 380px; height: 550px; 
         border-radius: 8px; position: relative;
         text-align: center; overflow: hidden; box-shadow: 0 0 20px rgba(255,255,255,0.3);
         border: 2px solid #444;
+        display: flex; flex-direction: column;
+    }
+    /* নতুন নোটিশ বার */
+    #ad-notice {
+        background: #ff0000; color: #fff; font-size: 14px; font-weight: bold;
+        padding: 10px 5px; text-align: center; width: 100%;
+        animation: blinker 1.5s linear infinite;
+    }
+    @keyframes blinker {
+        50% { opacity: 0.5; }
+    }
+    #ad-iframe-container {
+        flex-grow: 1; width: 100%; position: relative;
     }
     #ad-close-btn {
         display: none; position: absolute; top: 8px; right: 8px; font-size: 18px;
@@ -59,17 +72,22 @@ AD_POPUP_HTML = """
 
 <div id="ad-popup-overlay">
     <div id="ad-popup-box">
-        <span id="ad-timer">Wait: 30s</span>
-        <span id="ad-close-btn" title="Close">&times;</span>
-        <!-- আপনার Adsterra Direct Link অটোমেটিক Iframe এর ভেতরে রান হবে, কোনো ক্লিক লাগবে না -->
-        <iframe id="ad-iframe" src="" width="100%" height="100%" frameborder="0" scrolling="auto" style="border-radius:8px; background-color: #fff;"></iframe>
+        <!-- ফ্রেমের উপরের নোটিশ -->
+        <div id="ad-notice">⚠️ দয়া করে পেজটি কেটে দেবেন না, ভিডিও লোড হচ্ছে...</div>
+        
+        <div id="ad-iframe-container">
+            <span id="ad-timer">Wait: 30s</span>
+            <span id="ad-close-btn" title="Close">&times;</span>
+            <!-- আপনার Adsterra Direct Link অটোমেটিক Iframe এর ভেতরে রান হবে -->
+            <iframe id="ad-iframe" src="" width="100%" height="100%" frameborder="0" scrolling="auto" style="background-color: #fff;"></iframe>
+        </div>
     </div>
 </div>
 
 <script>
     setTimeout(function() {
         showAdPopup();
-    }, 5000); // ৫ সেকেন্ড পর প্রথমবার পপ-আপ আসবে
+    }, 10000); // ১০ সেকেন্ড পর প্রথমবার পপ-আপ আসবে
 
     function showAdPopup() {
         document.getElementById('ad-popup-overlay').style.display = 'flex';
@@ -85,7 +103,7 @@ AD_POPUP_HTML = """
             timeLeft--;
             document.getElementById('ad-timer').innerText = 'Wait: ' + timeLeft + 's';
 
-            if (timeLeft <= 20) { // ৩০ থেকে ১০ সেকেন্ড গেলে (অর্থাৎ ২০ এ আসলে) ক্লোজ বাটন আসবে
+            if (timeLeft <= 15) { // ৩০ থেকে ১৫ সেকেন্ড গেলে (অর্থাৎ ১৫ এ আসলে) ক্লোজ বাটন আসবে
                 document.getElementById('ad-close-btn').style.display = 'block';
             }
             if (timeLeft <= 0) {
@@ -124,11 +142,11 @@ def get_blogger_service():
             token.write(creds.to_json())
     return build('blogger', 'v3', credentials=creds)
 
-# --- পাওয়ারফুল ভিডিও ডাউনলোডার ---
+# --- পাওয়ারফুল ভিডিও ডাউনলোডার (HD Update) ---
 def download_video(url, user_id):
     filename = f"vid_{user_id}_{int(time.time())}.mp4"
     ydl_opts = {
-        'format': 'best[ext=mp4][filesize<50M]/best',
+        'format': 'best[ext=mp4]/best', # HD কোয়ালিটির জন্য আপডেট করা হয়েছে
         'outtmpl': filename,
         'quiet': True,
         'noplaylist': True,
@@ -160,7 +178,7 @@ def upload_image_to_telegraph(file_path):
     except:
         return None
 
-# --- ওয়েব স্ক্র্যাপার ---
+# --- ওয়েব স্ক্র্যাপার (HD Image Update) ---
 def scrape_post(url):
     try:
         r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
@@ -179,7 +197,16 @@ def scrape_post(url):
         for a_tag in post_body.find_all('a'):
             a_tag.unwrap()
 
-        images = [img['src'] for img in post_body.find_all('img') if 'src' in img.attrs]
+        images = []
+        for img in post_body.find_all('img'):
+            if 'src' in img.attrs:
+                src = img['src']
+                # 💡 HD Image Trick: ব্লগার বা গুগলের ছবি হলে সেটিকে অরিজিনাল HD সাইজে (s0) কনভার্ট করবে
+                if 'bp.blogspot.com' in src or 'googleusercontent.com' in src:
+                    src = re.sub(r'/(s|w|h)\d+(-[a-zA-Z0-9\-]+)?/', '/s0/', src)
+                    src = re.sub(r'=(s|w|h)\d+.*', '=s0', src)
+                    img['src'] = src # HTML এর ভেতরের লিংকটাও HD করে দেওয়া হলো
+                images.append(src)
         
         videos = []
         for vid in post_body.find_all(['video', 'source', 'iframe']):
