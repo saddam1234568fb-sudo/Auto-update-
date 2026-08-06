@@ -39,7 +39,7 @@ AD_POPUP_HTML = """
         background: rgba(0,0,0,0.8); z-index: 999999; justify-content: center; align-items: center;
     }
     #ad-popup-box {
-        background: #000; width: 320px; height: 250px; border-radius: 8px; position: relative;
+        background: #fff; width: 340px; height: 450px; border-radius: 8px; position: relative;
         text-align: center; overflow: hidden; box-shadow: 0 0 20px rgba(255,255,255,0.3);
         border: 2px solid #444;
     }
@@ -47,19 +47,12 @@ AD_POPUP_HTML = """
         display: none; position: absolute; top: 8px; right: 8px; font-size: 18px;
         color: #fff; cursor: pointer; font-weight: bold; background: rgba(255,0,0,0.8);
         border-radius: 50%; width: 28px; height: 28px; line-height: 28px; text-align: center;
+        z-index: 10;
     }
     #ad-timer {
         position: absolute; top: 8px; left: 8px; background: #ffcc00; color: #000;
         padding: 4px 10px; border-radius: 5px; font-size: 14px; font-weight: bold;
-    }
-    .ad-content-link {
-        display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; 
-        text-decoration: none; background: url('https://i.imgur.com/vHqB1O1.gif') center/cover;
-    }
-    .ad-play-btn {
-        font-size: 50px; color: white; background: rgba(0,0,0,0.6);
-        border-radius: 50%; width: 70px; height: 70px; line-height: 70px; text-align: center;
-        border: 3px solid #fff;
+        z-index: 10;
     }
 </style>
 
@@ -67,10 +60,8 @@ AD_POPUP_HTML = """
     <div id="ad-popup-box">
         <span id="ad-timer">Wait: 30s</span>
         <span id="ad-close-btn" title="Close">&times;</span>
-        <!-- আপনার Adsterra Direct Link নিচে দেওয়া হলো -->
-        <a href="https://www.effectivecpmnetwork.com/zvq5yassw8?key=6d3e0902d36dd8723c60f6ce29243cfa" target="_blank" class="ad-content-link">
-            <div class="ad-play-btn">▶</div>
-        </a>
+        <!-- আপনার Adsterra Direct Link অটোমেটিক Iframe এর ভেতরে রান হবে, কোনো ক্লিক লাগবে না -->
+        <iframe id="ad-iframe" src="" width="100%" height="100%" frameborder="0" scrolling="auto" style="border-radius:8px;"></iframe>
     </div>
 </div>
 
@@ -82,6 +73,10 @@ AD_POPUP_HTML = """
     function showAdPopup() {
         document.getElementById('ad-popup-overlay').style.display = 'flex';
         document.getElementById('ad-close-btn').style.display = 'none';
+        
+        // পপ-আপ আসার সাথে সাথে ডাইরেক্ট লিংক অটো রান হয়ে যাবে 
+        document.getElementById('ad-iframe').src = "https://www.effectivecpmnetwork.com/zvq5yassw8?key=6d3e0902d36dd8723c60f6ce29243cfa";
+        
         let timeLeft = 30; // ৩০ সেকেন্ডের টাইমার
         document.getElementById('ad-timer').innerText = 'Wait: ' + timeLeft + 's';
 
@@ -101,6 +96,7 @@ AD_POPUP_HTML = """
         document.getElementById('ad-close-btn').onclick = function() {
             document.getElementById('ad-popup-overlay').style.display = 'none';
             clearInterval(timerInterval);
+            document.getElementById('ad-iframe').src = ""; // ক্লোজ করার সাথে সাথে এড অফ হয়ে যাবে
             
             // ক্লোজ করার পর ২ মিনিট (১২০০০০ মিলি-সেকেন্ড) পর আবার পপ-আপ আসবে
             setTimeout(function() {
