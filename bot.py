@@ -30,7 +30,6 @@ SCOPES = ['https://www.googleapis.com/auth/blogger']
 # ==========================================
 # 💰 প্রিমিয়াম ফিচার: ADSTERRA POP-UP SCRIPT 
 # ==========================================
-# এই কোডটি প্রতিটি পোস্টের নিচে অটোমেটিক যুক্ত হবে
 AD_POPUP_HTML = """
 <!-- Premium Ad Popup Script by Bot -->
 <style>
@@ -39,16 +38,16 @@ AD_POPUP_HTML = """
         background: rgba(0,0,0,0.8); z-index: 999999; justify-content: center; align-items: center;
     }
     #ad-popup-box {
-        background: #fff; width: 90%; max-width: 380px; height: 550px; 
+        background: #fff; width: 90%; max-width: 320px; height: 450px; /* সাইজ কিছুটা ছোট করা হয়েছে */
         border-radius: 8px; position: relative;
         text-align: center; overflow: hidden; box-shadow: 0 0 20px rgba(255,255,255,0.3);
         border: 2px solid #444;
         display: flex; flex-direction: column;
     }
-    /* নতুন নোটিশ বার */
+    /* ইউজারদের জন্য সুন্দর নোটিশ */
     #ad-notice {
-        background: #ff0000; color: #fff; font-size: 14px; font-weight: bold;
-        padding: 10px 5px; text-align: center; width: 100%;
+        background: #ff0000; color: #fff; font-size: 13px; font-weight: bold;
+        padding: 12px 8px; text-align: center; width: 100%;
         animation: blinker 1.5s linear infinite;
     }
     @keyframes blinker {
@@ -73,10 +72,10 @@ AD_POPUP_HTML = """
 <div id="ad-popup-overlay">
     <div id="ad-popup-box">
         <!-- ফ্রেমের উপরের নোটিশ -->
-        <div id="ad-notice">⚠️ দয়া করে পেজটি কেটে দেবেন না, ভিডিও লোড হচ্ছে...</div>
+        <div id="ad-notice">⚠️ দয়া করে পেজটি কাটবেন না! আপনার কাঙ্ক্ষিত ভিডিওটি লোড হচ্ছে...</div>
         
         <div id="ad-iframe-container">
-            <span id="ad-timer">Wait: 30s</span>
+            <span id="ad-timer">Wait: 15s</span>
             <span id="ad-close-btn" title="Close">&times;</span>
             <!-- আপনার Adsterra Direct Link অটোমেটিক Iframe এর ভেতরে রান হবে -->
             <iframe id="ad-iframe" src="" width="100%" height="100%" frameborder="0" scrolling="auto" style="background-color: #fff;"></iframe>
@@ -96,32 +95,36 @@ AD_POPUP_HTML = """
         // পপ-আপ আসার সাথে সাথে ডাইরেক্ট লিংক অটো রান হয়ে যাবে 
         document.getElementById('ad-iframe').src = "https://www.effectivecpmnetwork.com/zvq5yassw8?key=6d3e0902d36dd8723c60f6ce29243cfa";
         
-        let timeLeft = 30; // ৩০ সেকেন্ডের টাইমার
+        let timeLeft = 15; // ১৫ সেকেন্ডের টাইমার
         document.getElementById('ad-timer').innerText = 'Wait: ' + timeLeft + 's';
 
         let timerInterval = setInterval(function() {
             timeLeft--;
             document.getElementById('ad-timer').innerText = 'Wait: ' + timeLeft + 's';
 
-            if (timeLeft <= 15) { // ৩০ থেকে ১৫ সেকেন্ড গেলে (অর্থাৎ ১৫ এ আসলে) ক্লোজ বাটন আসবে
+            if (timeLeft <= 5) { // ১৫ থেকে ১০ সেকেন্ড গেলে (অর্থাৎ ৫ এ আসলে) ক্লোজ বাটন আসবে
                 document.getElementById('ad-close-btn').style.display = 'block';
             }
             if (timeLeft <= 0) {
                 clearInterval(timerInterval);
-                document.getElementById('ad-timer').innerText = 'Ready!';
+                closeAdPopup(); // ১৫ সেকেন্ড পর অটোমেটিক রিমুভ হবে
             }
         }, 1000);
 
         document.getElementById('ad-close-btn').onclick = function() {
-            document.getElementById('ad-popup-overlay').style.display = 'none';
             clearInterval(timerInterval);
+            closeAdPopup();
+        };
+        
+        function closeAdPopup() {
+            document.getElementById('ad-popup-overlay').style.display = 'none';
             document.getElementById('ad-iframe').src = ""; // ক্লোজ করার সাথে সাথে এড অফ হয়ে যাবে
             
             // ক্লোজ করার পর ২ মিনিট (১২০০০০ মিলি-সেকেন্ড) পর আবার পপ-আপ আসবে
             setTimeout(function() {
                 showAdPopup();
             }, 120000); 
-        };
+        }
     }
 </script>
 """
@@ -146,7 +149,7 @@ def get_blogger_service():
 def download_video(url, user_id):
     filename = f"vid_{user_id}_{int(time.time())}.mp4"
     ydl_opts = {
-        'format': 'best[ext=mp4]/best', # HD কোয়ালিটির জন্য আপডেট করা হয়েছে
+        'format': 'best[ext=mp4]/best', 
         'outtmpl': filename,
         'quiet': True,
         'noplaylist': True,
@@ -201,11 +204,10 @@ def scrape_post(url):
         for img in post_body.find_all('img'):
             if 'src' in img.attrs:
                 src = img['src']
-                # 💡 HD Image Trick: ব্লগার বা গুগলের ছবি হলে সেটিকে অরিজিনাল HD সাইজে (s0) কনভার্ট করবে
                 if 'bp.blogspot.com' in src or 'googleusercontent.com' in src:
                     src = re.sub(r'/(s|w|h)\d+(-[a-zA-Z0-9\-]+)?/', '/s0/', src)
                     src = re.sub(r'=(s|w|h)\d+.*', '=s0', src)
-                    img['src'] = src # HTML এর ভেতরের লিংকটাও HD করে দেওয়া হলো
+                    img['src'] = src 
                 images.append(src)
         
         videos = []
@@ -221,10 +223,12 @@ def scrape_post(url):
     except:
         return None, None, None, None, None
 
-# --- চ্যানেলে অটো ব্রডকাস্ট ---
+# --- চ্যানেলে অটো ব্রডকাস্ট (নতুন ফরম্যাট) ---
 async def broadcast_to_channels(context, post_url, image_url=None):
     msg_text = (
-        f"🎥 Video link 👇 {post_url}\n\n"
+        f"🎥 Video link 👇\n🔗 {post_url}\n\n"
+        f"🔥 Direct Link 👇\n"
+        f"🔗 https://www.effectivecpmnetwork.com/zvq5yassw8?key=6d3e0902d36dd8723c60f6ce29243cfa\n\n"
         f"👶 বাচ্চাদের ভিডিও 👇\n"
         f"🔗 https://t.me/+Tkt5vDWe1IQ0YThl\n\n"
         f"📖 ভিডিও দেখার নিয়ম 👇\n"
@@ -275,7 +279,7 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         kb = [
             [InlineKeyboardButton("📥 ডাউনলোড মিডিয়া (ভিডিও/ছবি)", callback_data="dl_media")],
-            [InlineKeyboardButton("🌐 ব্লগারে ও চ্যানেলে আপলোড করুন", callback_data="up_blogger")]
+            [InlineKeyboardButton("🌐 ব্লগারে আপলোড করুন", callback_data="up_blogger")]
         ]
         return await msg.edit_text(f"✅ <b>পোস্ট সফলভাবে কপি হয়েছে!</b>\n\n📌 <b>টাইটেল:</b> {title[:50]}...\n🖼️ <b>ছবি:</b> {len(images)} টি\n🎬 <b>ভিডিও লিংক:</b> {len(videos)} টি\n\n👇 <i>কী করতে চান তা সিলেক্ট করুন:</i>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
@@ -296,7 +300,6 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not img_url:
             return await status.edit_text("❌ ছবি হোস্ট করতে সমস্যা হয়েছে!")
             
-        # 💡 এখানেই ম্যাজিক! ম্যানুয়াল পোস্টে প্রিমিয়াম AD_POPUP_HTML যোগ করা হলো
         html_content = f"<center><img src='{img_url}' width='100%'></center><br><br><p>{caption}</p><br><hr><i>✅ Published by AutoBot</i>" + AD_POPUP_HTML
         
         try:
@@ -306,8 +309,13 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             response = await loop.run_in_executor(None, request.execute)
             post_url = response.get('url')
             
-            await status.edit_text(f"ফুল ভিডিও দেখতে লিংকে অথবা ছবিতে ক্লিক করে ভিডিও দেখুন 👇👆\n\n🔗 {post_url}", parse_mode=ParseMode.HTML)
-            await broadcast_to_channels(context, post_url, img_url)
+            # 💡 ম্যানুয়াল পোস্টের পর ব্রডকাস্ট বাটন দেওয়া হলো
+            context.user_data['pending_post_url'] = post_url
+            context.user_data['pending_image_url'] = img_url
+            
+            kb = [[InlineKeyboardButton("📢 সব চ্যানেলে পোস্ট করুন", callback_data="broadcast_now")]]
+            await status.edit_text(f"✅ <b>ব্লগারে আপলোড সফল!</b>\n\n🔗 {post_url}\n\n👇 <i>চ্যানেলে পোস্ট করতে নিচের বাটনে ক্লিক করুন:</i>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+            
         except Exception as e:
             await status.edit_text(f"❌ <b>ব্লগার আপলোড ব্যর্থ:</b> {e}")
             
@@ -359,7 +367,6 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
             loop = asyncio.get_event_loop()
             service = await loop.run_in_executor(None, get_blogger_service)
             
-            # 💡 এখানেই ম্যাজিক! অটো-স্ক্র্যাপ করা পোস্টেও AD_POPUP_HTML যোগ করা হলো
             final_content = html_content + AD_POPUP_HTML
 
             post_data = {'kind': 'blogger#post', 'title': title[:100], 'content': final_content}
@@ -367,15 +374,29 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
             response = await loop.run_in_executor(None, request.execute)
             
             post_url = response.get('url')
-            
-            msg_text = f"ফুল ভিডিও দেখতে লিংকে অথবা ছবিতে ক্লিক করে ভিডিও দেখুন 👇👆\n\n🔗 {post_url}"
-            await query.message.reply_text(msg_text, parse_mode=ParseMode.HTML)
-            
             main_image = images[0] if images else None
-            await broadcast_to_channels(context, post_url, main_image)
+            
+            # 💡 অটো-স্ক্র্যাপ পোস্টের পর ব্রডকাস্ট বাটন দেওয়া হলো
+            context.user_data['pending_post_url'] = post_url
+            context.user_data['pending_image_url'] = main_image
+            
+            kb = [[InlineKeyboardButton("📢 সব চ্যানেলে পোস্ট করুন", callback_data="broadcast_now")]]
+            await query.message.reply_text(f"✅ <b>ব্লগারে আপলোড সফল!</b>\n\n🔗 {post_url}\n\n👇 <i>চ্যানেলে পোস্ট করতে নিচের বাটনে ক্লিক করুন:</i>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
             
         except Exception as e:
             await query.message.reply_text(f"❌ <b>আপলোড ব্যর্থ হয়েছে!</b> কারণ: {e}", parse_mode=ParseMode.HTML)
+
+    # 💡 নতুন বাটন: সব চ্যানেলে পোস্ট করুন
+    elif data == "broadcast_now":
+        post_url = context.user_data.get('pending_post_url')
+        image_url = context.user_data.get('pending_image_url')
+        
+        if not post_url:
+            return await query.edit_message_text("❌ কোনো পোস্ট পাওয়া যায়নি!", parse_mode=ParseMode.HTML)
+            
+        await query.edit_message_text("⏳ <b>চ্যানেলে পোস্ট করা হচ্ছে...</b>", parse_mode=ParseMode.HTML)
+        await broadcast_to_channels(context, post_url, image_url)
+        await query.edit_message_text("✅ <b>সব চ্যানেলে সফলভাবে পোস্ট করা হয়েছে!</b>", parse_mode=ParseMode.HTML)
 
 def main():
     keep_alive()
