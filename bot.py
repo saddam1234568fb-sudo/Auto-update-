@@ -27,109 +27,6 @@ BLOG_ID = "703905313056903698"
 AUTO_POST_CHANNELS = ["-1003760997017", "-1003847092759"]
 SCOPES = ['https://www.googleapis.com/auth/blogger']
 
-# ==========================================
-# 💰 প্রিমিয়াম ফিচার: ADSTERRA POP-UP SCRIPT 
-# ==========================================
-AD_POPUP_HTML = """
-<!-- Premium Ad Popup Script by Bot -->
-<style>
-    #ad-popup-overlay {
-        display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.8); z-index: 999999; justify-content: center; align-items: center;
-    }
-    #ad-popup-box {
-        background: #fff; width: 90%; max-width: 320px; height: 450px; /* সাইজ কিছুটা ছোট করা হয়েছে */
-        border-radius: 8px; position: relative;
-        text-align: center; overflow: hidden; box-shadow: 0 0 20px rgba(255,255,255,0.3);
-        border: 2px solid #444;
-        display: flex; flex-direction: column;
-    }
-    /* ইউজারদের জন্য সুন্দর নোটিশ */
-    #ad-notice {
-        background: #ff0000; color: #fff; font-size: 13px; font-weight: bold;
-        padding: 12px 8px; text-align: center; width: 100%;
-        animation: blinker 1.5s linear infinite;
-    }
-    @keyframes blinker {
-        50% { opacity: 0.5; }
-    }
-    #ad-iframe-container {
-        flex-grow: 1; width: 100%; position: relative;
-    }
-    #ad-close-btn {
-        display: none; position: absolute; top: 8px; right: 8px; font-size: 18px;
-        color: #fff; cursor: pointer; font-weight: bold; background: rgba(255,0,0,0.8);
-        border-radius: 50%; width: 28px; height: 28px; line-height: 28px; text-align: center;
-        z-index: 10;
-    }
-    #ad-timer {
-        position: absolute; top: 8px; left: 8px; background: #ffcc00; color: #000;
-        padding: 4px 10px; border-radius: 5px; font-size: 14px; font-weight: bold;
-        z-index: 10;
-    }
-</style>
-
-<div id="ad-popup-overlay">
-    <div id="ad-popup-box">
-        <!-- ফ্রেমের উপরের নোটিশ -->
-        <div id="ad-notice">⚠️ দয়া করে পেজটি কাটবেন না! আপনার কাঙ্ক্ষিত ভিডিওটি লোড হচ্ছে...</div>
-        
-        <div id="ad-iframe-container">
-            <span id="ad-timer">Wait: 15s</span>
-            <span id="ad-close-btn" title="Close">&times;</span>
-            <!-- আপনার Adsterra Direct Link অটোমেটিক Iframe এর ভেতরে রান হবে -->
-            <iframe id="ad-iframe" src="" width="100%" height="100%" frameborder="0" scrolling="auto" style="background-color: #fff;"></iframe>
-        </div>
-    </div>
-</div>
-
-<script>
-    setTimeout(function() {
-        showAdPopup();
-    }, 10000); // ১০ সেকেন্ড পর প্রথমবার পপ-আপ আসবে
-
-    function showAdPopup() {
-        document.getElementById('ad-popup-overlay').style.display = 'flex';
-        document.getElementById('ad-close-btn').style.display = 'none';
-        
-        // পপ-আপ আসার সাথে সাথে ডাইরেক্ট লিংক অটো রান হয়ে যাবে 
-        document.getElementById('ad-iframe').src = "https://www.effectivecpmnetwork.com/zvq5yassw8?key=6d3e0902d36dd8723c60f6ce29243cfa";
-        
-        let timeLeft = 15; // ১৫ সেকেন্ডের টাইমার
-        document.getElementById('ad-timer').innerText = 'Wait: ' + timeLeft + 's';
-
-        let timerInterval = setInterval(function() {
-            timeLeft--;
-            document.getElementById('ad-timer').innerText = 'Wait: ' + timeLeft + 's';
-
-            if (timeLeft <= 5) { // ১৫ থেকে ১০ সেকেন্ড গেলে (অর্থাৎ ৫ এ আসলে) ক্লোজ বাটন আসবে
-                document.getElementById('ad-close-btn').style.display = 'block';
-            }
-            if (timeLeft <= 0) {
-                clearInterval(timerInterval);
-                closeAdPopup(); // ১৫ সেকেন্ড পর অটোমেটিক রিমুভ হবে
-            }
-        }, 1000);
-
-        document.getElementById('ad-close-btn').onclick = function() {
-            clearInterval(timerInterval);
-            closeAdPopup();
-        };
-        
-        function closeAdPopup() {
-            document.getElementById('ad-popup-overlay').style.display = 'none';
-            document.getElementById('ad-iframe').src = ""; // ক্লোজ করার সাথে সাথে এড অফ হয়ে যাবে
-            
-            // ক্লোজ করার পর ২ মিনিট (১২০০০০ মিলি-সেকেন্ড) পর আবার পপ-আপ আসবে
-            setTimeout(function() {
-                showAdPopup();
-            }, 120000); 
-        }
-    }
-</script>
-"""
-# ==========================================
-
 # --- গুগল ব্লগার এপিআই অথেনটিকেশন ---
 def get_blogger_service():
     creds = None
@@ -232,7 +129,7 @@ async def broadcast_to_channels(context, post_url, image_url=None):
         f"🔗 https://t.me/+Tkt5vDWe1IQ0YThl\n\n"
         f"📖 ভিডিও দেখার নিয়ম 👇\n"
         f"🔗 https://t.me/c/4313671513/2\n\n"
-        f"❤️ ভরপুর রিয়েকশন দিন যাতে আরও নতুন নতুন ভিডিও নিয়মিত পান! 🔥 \n"
+        f"❤️ ভরপুর রিয়েকশন দিন যাতে আরও নতুন নতুন ভিডিও নিয়মিত পান! 🔥 \n"
         f'<a href="https://t.me/auto_accepr_sk_bot?start=ref_6836865426">Auto Accept Bot</a>'
     )
     for ch_id in AUTO_POST_CHANNELS:
@@ -247,7 +144,7 @@ async def broadcast_to_channels(context, post_url, image_url=None):
 # --- টেলিগ্রাম কমান্ড ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    txt = f"🎉 <b>হ্যালো {user.first_name}!</b>\n\n🤖 আমি <b>Smart Scraper & Auto-Blogger Bot! (Premium Mode)</b>\n\n🔗 <b>অটো পোস্ট:</b> ব্লগারের লিংক দিন।\n📝 <b>ম্যানুয়াল পোস্ট:</b> /blog লিখে সেন্ড করুন।"
+    txt = f"🎉 <b>হ্যালো {user.first_name}!</b>\n\n🤖 আমি <b>Smart Scraper & Auto-Blogger Bot!</b>\n\n🔗 <b>অটো পোস্ট:</b> ব্লগারের লিংক দিন।\n📝 <b>ম্যানুয়াল পোস্ট:</b> /blog লিখে সেন্ড করুন।"
     await update.message.reply_text(txt, parse_mode=ParseMode.HTML)
 
 async def manual_blog_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -299,7 +196,7 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not img_url:
             return await status.edit_text("❌ ছবি হোস্ট করতে সমস্যা হয়েছে!")
             
-        html_content = f"<center><img src='{img_url}' width='100%'></center><br><br><p>{caption}</p><br><hr><i>✅ Published by AutoBot</i>" + AD_POPUP_HTML
+        html_content = f"<center><img src='{img_url}' width='100%'></center><br><br><p>{caption}</p><br><hr><i>✅ Published by AutoBot</i>"
         
         try:
             service = await loop.run_in_executor(None, get_blogger_service)
@@ -365,7 +262,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
             loop = asyncio.get_event_loop()
             service = await loop.run_in_executor(None, get_blogger_service)
             
-            final_content = html_content + AD_POPUP_HTML
+            final_content = html_content 
 
             post_data = {'kind': 'blogger#post', 'title': title[:100], 'content': final_content}
             request = service.posts().insert(blogId=BLOG_ID, body=post_data, isDraft=False)
@@ -403,7 +300,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT | filters.PHOTO, handle_input))
     app.add_handler(CallbackQueryHandler(button_click))
     
-    print("🚀 Auto-Blogger Pro Bot (Premium Edition) is running 24/7...")
+    print("🚀 Auto-Blogger Pro Bot is running 24/7...")
     app.run_polling()
 
 if __name__ == '__main__':
